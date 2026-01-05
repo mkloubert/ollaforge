@@ -8,10 +8,12 @@ A web application that simplifies training LLMs with your own data for use in Ol
 - Modern React UI with real-time status display
 - Cross-platform support (Windows, macOS, Linux, BSD)
 - Automatic port detection and CORS configuration
-- Automatic Node.js LTS version detection and installation
+- Automatic dependency installation (Git, Node.js)
+- Automatic llama.cpp setup and integration
 
 ## Prerequisites
 
+- **Git** (automatically installed if missing)
 - **Python 3.13** or newer
 - **Node.js 20+** and **npm** (automatically installed if missing)
 - **PowerShell 7+** (optional, for run.ps1)
@@ -20,6 +22,7 @@ A web application that simplifies training LLMs with your own data for use in Ol
 
 ```
 /workspace
+├── .llama.cpp/          # llama.cpp repository (auto-cloned)
 ├── api/                 # FastAPI backend
 │   ├── main.py          # Main application with CORS
 │   └── routers/         # API route handlers
@@ -85,14 +88,35 @@ A web application that simplifies training LLMs with your own data for use in Ol
 
 If a default port is in use, the application automatically finds an available port.
 
-## Automatic Node.js Installation
+## Automatic Dependency Installation
 
-The setup scripts (`run.sh` and `run.ps1`) automatically detect and install the latest Node.js LTS version if Node.js is not found or the installed version is too old.
+The setup scripts (`run.sh` and `run.ps1`) automatically detect and install missing dependencies.
+
+### Git
+
+If Git is not installed, the scripts will offer to install it using the system package manager:
+
+- Windows: winget, Chocolatey, or Scoop
+- macOS: Homebrew or MacPorts
+- Linux: apt, dnf, pacman, zypper, apk, or emerge (depending on distribution)
+
+### Node.js
+
+If Node.js is not found or the installed version is too old:
 
 - Fetches the latest LTS version from `https://nodejs.org/download/release/index.json`
 - Downloads and installs Node.js to the local `.node` directory
 - Falls back to a known stable version if the API is unreachable
 - No system-wide installation required
+
+### llama.cpp
+
+On startup, `run.py` automatically checks for llama.cpp:
+
+- If `.llama.cpp` directory does not exist, it clones the repository (shallow clone, HEAD only)
+- Uses the URL from `OLLAFORGE_LLAMA_URL` environment variable (defaults to https://github.com/ggml-org/llama.cpp)
+- Installs Python dependencies from llama.cpp's `requirements.txt`
+- If cloning or dependency installation fails, the application will not start
 
 ## API Endpoints
 
@@ -122,10 +146,11 @@ python run.py --no-open --ui-port 8080 --api-port 8081
 
 #### Root (run.py)
 
-| Variable           | Description             | Default |
-| ------------------ | ----------------------- | ------- |
-| OLLAFORGE_UI_PORT  | Port for the UI server  | 5979    |
-| OLLAFORGE_API_PORT | Port for the API server | 23979   |
+| Variable            | Description                 | Default                               |
+| ------------------- | --------------------------- | ------------------------------------- |
+| OLLAFORGE_UI_PORT   | Port for the UI server      | 5979                                  |
+| OLLAFORGE_API_PORT  | Port for the API server     | 23979                                 |
+| OLLAFORGE_LLAMA_URL | URL to clone llama.cpp from | https://github.com/ggml-org/llama.cpp |
 
 #### UI (Vite)
 

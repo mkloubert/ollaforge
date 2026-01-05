@@ -40,6 +40,7 @@ $Script:LinuxDistroId = $null
 $Script:LinuxDistroFamily = $null
 $Script:PkgMgr = $null
 $Script:PythonPkg = $null
+$Script:GitPkg = $null
 $Script:PythonCmd = $null
 $Script:NodeCmd = $null
 $Script:NpmCmd = $null
@@ -445,24 +446,29 @@ function Get-PackageManager {
             if (Test-CommandExists "winget") {
                 $Script:PkgMgr = "winget"
                 $Script:PythonPkg = "Python.Python.3.13"
+                $Script:GitPkg = "Git.Git"
             }
             elseif (Test-CommandExists "choco") {
                 $Script:PkgMgr = "choco"
                 $Script:PythonPkg = "python313"
+                $Script:GitPkg = "git"
             }
             elseif (Test-CommandExists "scoop") {
                 $Script:PkgMgr = "scoop"
                 $Script:PythonPkg = "python"
+                $Script:GitPkg = "git"
             }
         }
         "darwin" {
             if (Test-CommandExists "brew") {
                 $Script:PkgMgr = "brew"
                 $Script:PythonPkg = "python@3.13"
+                $Script:GitPkg = "git"
             }
             elseif (Test-CommandExists "port") {
                 $Script:PkgMgr = "port"
                 $Script:PythonPkg = "python313"
+                $Script:GitPkg = "git"
             }
         }
         "linux" {
@@ -474,6 +480,7 @@ function Get-PackageManager {
                     if (Test-CommandExists "apt-get") {
                         $Script:PkgMgr = "apt"
                         $Script:PythonPkg = "python3"
+                        $Script:GitPkg = "git"
                     }
                 }
                 # Fedora/RHEL-based
@@ -481,10 +488,12 @@ function Get-PackageManager {
                     if (Test-CommandExists "dnf") {
                         $Script:PkgMgr = "dnf"
                         $Script:PythonPkg = "python3"
+                        $Script:GitPkg = "git"
                     }
                     elseif (Test-CommandExists "yum") {
                         $Script:PkgMgr = "yum"
                         $Script:PythonPkg = "python3"
+                        $Script:GitPkg = "git"
                     }
                 }
                 # Arch-based
@@ -492,6 +501,7 @@ function Get-PackageManager {
                     if (Test-CommandExists "pacman") {
                         $Script:PkgMgr = "pacman"
                         $Script:PythonPkg = "python"
+                        $Script:GitPkg = "git"
                     }
                 }
                 # openSUSE
@@ -499,6 +509,7 @@ function Get-PackageManager {
                     if (Test-CommandExists "zypper") {
                         $Script:PkgMgr = "zypper"
                         $Script:PythonPkg = "python3"
+                        $Script:GitPkg = "git"
                     }
                 }
                 # Alpine
@@ -506,6 +517,7 @@ function Get-PackageManager {
                     if (Test-CommandExists "apk") {
                         $Script:PkgMgr = "apk"
                         $Script:PythonPkg = "python3"
+                        $Script:GitPkg = "git"
                     }
                 }
                 # Gentoo
@@ -513,6 +525,7 @@ function Get-PackageManager {
                     if (Test-CommandExists "emerge") {
                         $Script:PkgMgr = "emerge"
                         $Script:PythonPkg = "dev-lang/python"
+                        $Script:GitPkg = "dev-vcs/git"
                     }
                 }
                 # Void Linux
@@ -520,6 +533,7 @@ function Get-PackageManager {
                     if (Test-CommandExists "xbps-install") {
                         $Script:PkgMgr = "xbps"
                         $Script:PythonPkg = "python3"
+                        $Script:GitPkg = "git"
                     }
                 }
                 # NixOS
@@ -527,6 +541,7 @@ function Get-PackageManager {
                     if (Test-CommandExists "nix-env") {
                         $Script:PkgMgr = "nix"
                         $Script:PythonPkg = "python3"
+                        $Script:GitPkg = "git"
                     }
                 }
             }
@@ -536,38 +551,47 @@ function Get-PackageManager {
                 if (Test-CommandExists "apt-get") {
                     $Script:PkgMgr = "apt"
                     $Script:PythonPkg = "python3"
+                    $Script:GitPkg = "git"
                 }
                 elseif (Test-CommandExists "dnf") {
                     $Script:PkgMgr = "dnf"
                     $Script:PythonPkg = "python3"
+                    $Script:GitPkg = "git"
                 }
                 elseif (Test-CommandExists "yum") {
                     $Script:PkgMgr = "yum"
                     $Script:PythonPkg = "python3"
+                    $Script:GitPkg = "git"
                 }
                 elseif (Test-CommandExists "pacman") {
                     $Script:PkgMgr = "pacman"
                     $Script:PythonPkg = "python"
+                    $Script:GitPkg = "git"
                 }
                 elseif (Test-CommandExists "zypper") {
                     $Script:PkgMgr = "zypper"
                     $Script:PythonPkg = "python3"
+                    $Script:GitPkg = "git"
                 }
                 elseif (Test-CommandExists "apk") {
                     $Script:PkgMgr = "apk"
                     $Script:PythonPkg = "python3"
+                    $Script:GitPkg = "git"
                 }
                 elseif (Test-CommandExists "emerge") {
                     $Script:PkgMgr = "emerge"
                     $Script:PythonPkg = "dev-lang/python"
+                    $Script:GitPkg = "dev-vcs/git"
                 }
                 elseif (Test-CommandExists "xbps-install") {
                     $Script:PkgMgr = "xbps"
                     $Script:PythonPkg = "python3"
+                    $Script:GitPkg = "git"
                 }
                 elseif (Test-CommandExists "nix-env") {
                     $Script:PkgMgr = "nix"
                     $Script:PythonPkg = "python3"
+                    $Script:GitPkg = "git"
                 }
             }
         }
@@ -575,6 +599,7 @@ function Get-PackageManager {
             if (Test-CommandExists "pkg") {
                 $Script:PkgMgr = "pkg"
                 $Script:PythonPkg = "python3"
+                $Script:GitPkg = "git"
             }
         }
     }
@@ -654,6 +679,121 @@ function Install-Python {
     }
 
     Write-LogSuccess "Python installed successfully."
+}
+
+# =============================================================================
+# Git Installation
+# =============================================================================
+
+function Install-Git {
+    Write-LogInfo "Installing Git via $Script:PkgMgr..."
+
+    switch ($Script:PkgMgr) {
+        "winget" {
+            & winget install --silent --accept-package-agreements --accept-source-agreements $Script:GitPkg
+        }
+        "choco" {
+            & choco install -y $Script:GitPkg
+        }
+        "scoop" {
+            & scoop install $Script:GitPkg
+        }
+        "brew" {
+            & brew install $Script:GitPkg
+        }
+        "port" {
+            & sudo port install $Script:GitPkg
+        }
+        "apt" {
+            & sudo apt-get update -qq
+            & sudo apt-get install -y $Script:GitPkg
+        }
+        "dnf" {
+            & sudo dnf install -y $Script:GitPkg
+        }
+        "yum" {
+            & sudo yum install -y $Script:GitPkg
+        }
+        "pacman" {
+            & sudo pacman -Sy --noconfirm $Script:GitPkg
+        }
+        "zypper" {
+            & sudo zypper install -y $Script:GitPkg
+        }
+        "apk" {
+            & sudo apk add $Script:GitPkg
+        }
+        "emerge" {
+            & sudo emerge $Script:GitPkg
+        }
+        "xbps" {
+            & sudo xbps-install -y $Script:GitPkg
+        }
+        "nix" {
+            & nix-env -iA nixpkgs.git
+        }
+        "pkg" {
+            & sudo pkg install -y $Script:GitPkg
+        }
+        default {
+            Write-LogError "Unknown package manager: $Script:PkgMgr"
+            exit 1
+        }
+    }
+
+    # Refresh PATH on Windows
+    if ($Script:OsType -eq "windows") {
+        $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+    }
+
+    Write-LogSuccess "Git installed successfully."
+}
+
+# =============================================================================
+# Git Check
+# =============================================================================
+
+function Confirm-Git {
+    Write-LogInfo "Checking Git installation..."
+
+    if (Test-CommandExists "git") {
+        try {
+            $gitVersion = & git --version 2>&1
+            $gitVersion = $gitVersion -replace 'git version ', ''
+            Write-LogInfo "Found Git $gitVersion"
+            Write-LogSuccess "Git check passed."
+            return
+        }
+        catch {
+            # Continue to installation
+        }
+    }
+
+    # Git not found
+    if (-not $Script:PkgMgr) {
+        Write-LogError "Git is required but not installed."
+        Write-LogError "No package manager detected to install it automatically."
+        Write-LogError "Please install Git manually."
+        exit 1
+    }
+
+    Write-LogWarn "Git is required but not found."
+    Write-Host ""
+
+    if (-not (Read-YesNo "Would you like to install Git using $Script:PkgMgr?" "y")) {
+        Write-LogError "Git installation declined. Cannot continue without Git."
+        exit 1
+    }
+
+    Install-Git
+
+    # Verify installation
+    if (-not (Test-CommandExists "git")) {
+        Write-LogError "Git installation failed."
+        exit 1
+    }
+
+    Write-LogSuccess "Git installed and verified."
 }
 
 # =============================================================================
@@ -967,21 +1107,24 @@ function Main {
     Get-OperatingSystem
     Get-PackageManager
 
-    # Phase 2: Ensure Node.js is installed
+    # Phase 2: Ensure Git is installed
+    Confirm-Git
+
+    # Phase 3: Ensure Node.js is installed
     Confirm-Node
 
-    # Phase 3: Ensure Python is installed
+    # Phase 4: Ensure Python is installed
     Confirm-Python
 
-    # Phase 4: Setup virtual environment
+    # Phase 5: Setup virtual environment
     Initialize-Venv
 
-    # Phase 5: Install dependencies
+    # Phase 6: Install dependencies
     Install-PipDependencies
     Confirm-Npm
     Install-NpmDependencies
 
-    # Phase 6: Run the application
+    # Phase 7: Run the application
     Write-Host ""
     Write-LogSuccess "Setup complete! Starting OllaForge..."
     Write-Host ""

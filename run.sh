@@ -396,6 +396,7 @@ detect_package_manager() {
     log_info "Detecting package manager..."
     PKG_MGR=""
     PYTHON_PKG=""
+    GIT_PKG=""
 
     case "$OS_TYPE" in
         linux)
@@ -405,36 +406,42 @@ detect_package_manager() {
                     if command_exists apt-get; then
                         PKG_MGR="apt"
                         PYTHON_PKG="python3"
+                        GIT_PKG="git"
                     fi
                     ;;
                 fedora|rhel|centos|rocky|almalinux)
                     if command_exists dnf; then
                         PKG_MGR="dnf"
                         PYTHON_PKG="python3"
+                        GIT_PKG="git"
                     fi
                     ;;
                 arch|manjaro|endeavouros)
                     if command_exists pacman; then
                         PKG_MGR="pacman"
                         PYTHON_PKG="python"
+                        GIT_PKG="git"
                     fi
                     ;;
                 opensuse|opensuse-leap|opensuse-tumbleweed)
                     if command_exists zypper; then
                         PKG_MGR="zypper"
                         PYTHON_PKG="python3"
+                        GIT_PKG="git"
                     fi
                     ;;
                 alpine)
                     if command_exists apk; then
                         PKG_MGR="apk"
                         PYTHON_PKG="python3"
+                        GIT_PKG="git"
                     fi
                     ;;
                 gentoo)
                     if command_exists emerge; then
                         PKG_MGR="emerge"
                         PYTHON_PKG="dev-lang/python"
+                        GIT_PKG="dev-vcs/git"
                     fi
                     ;;
             esac
@@ -444,21 +451,27 @@ detect_package_manager() {
                 if command_exists apt-get; then
                     PKG_MGR="apt"
                     PYTHON_PKG="python3"
+                    GIT_PKG="git"
                 elif command_exists dnf; then
                     PKG_MGR="dnf"
                     PYTHON_PKG="python3"
+                    GIT_PKG="git"
                 elif command_exists pacman; then
                     PKG_MGR="pacman"
                     PYTHON_PKG="python"
+                    GIT_PKG="git"
                 elif command_exists zypper; then
                     PKG_MGR="zypper"
                     PYTHON_PKG="python3"
+                    GIT_PKG="git"
                 elif command_exists apk; then
                     PKG_MGR="apk"
                     PYTHON_PKG="python3"
+                    GIT_PKG="git"
                 elif command_exists emerge; then
                     PKG_MGR="emerge"
                     PYTHON_PKG="dev-lang/python"
+                    GIT_PKG="dev-vcs/git"
                 fi
             fi
             ;;
@@ -466,15 +479,18 @@ detect_package_manager() {
             if command_exists brew; then
                 PKG_MGR="brew"
                 PYTHON_PKG="python@3.13"
+                GIT_PKG="git"
             elif command_exists port; then
                 PKG_MGR="port"
                 PYTHON_PKG="python313"
+                GIT_PKG="git"
             fi
             ;;
         freebsd|netbsd|openbsd|dragonfly)
             if command_exists pkg; then
                 PKG_MGR="pkg"
                 PYTHON_PKG="python3"
+                GIT_PKG="git"
             fi
             ;;
     esac
@@ -530,6 +546,91 @@ install_python() {
     esac
 
     log_success "Python installed successfully."
+}
+
+# =============================================================================
+# Git Installation
+# =============================================================================
+
+install_git() {
+    log_info "Installing Git via $PKG_MGR..."
+
+    case "$PKG_MGR" in
+        apt)
+            sudo apt-get update -qq
+            sudo apt-get install -y "$GIT_PKG"
+            ;;
+        dnf)
+            sudo dnf install -y "$GIT_PKG"
+            ;;
+        pacman)
+            sudo pacman -Sy --noconfirm "$GIT_PKG"
+            ;;
+        zypper)
+            sudo zypper install -y "$GIT_PKG"
+            ;;
+        apk)
+            sudo apk add "$GIT_PKG"
+            ;;
+        emerge)
+            sudo emerge "$GIT_PKG"
+            ;;
+        brew)
+            brew install "$GIT_PKG"
+            ;;
+        port)
+            sudo port install "$GIT_PKG"
+            ;;
+        pkg)
+            sudo pkg install -y "$GIT_PKG"
+            ;;
+        *)
+            log_error "Unknown package manager: $PKG_MGR"
+            exit 1
+            ;;
+    esac
+
+    log_success "Git installed successfully."
+}
+
+# =============================================================================
+# Git Check
+# =============================================================================
+
+ensure_git() {
+    log_info "Checking Git installation..."
+
+    if command_exists git; then
+        git_version=$(git --version 2>&1 | sed 's/git version //')
+        log_info "Found Git $git_version"
+        log_success "Git check passed."
+        return 0
+    fi
+
+    # Git not found
+    if [ -z "$PKG_MGR" ]; then
+        log_error "Git is required but not installed."
+        log_error "No package manager detected to install it automatically."
+        log_error "Please install Git manually."
+        exit 1
+    fi
+
+    log_warn "Git is required but not found."
+    echo ""
+    if ! ask_yes_no "Would you like to install Git using $PKG_MGR?" "y"; then
+        log_error "Git installation declined. Cannot continue without Git."
+        exit 1
+    fi
+
+    install_git
+
+    # Verify installation
+    if ! command_exists git; then
+        log_error "Git installation failed."
+        exit 1
+    fi
+
+    log_success "Git installed and verified."
 }
 
 # =============================================================================
@@ -768,21 +869,24 @@ main() {
     detect_os
     detect_package_manager
 
-    # Phase 2: Ensure Node.js is installed
+    # Phase 2: Ensure Git is installed
+    ensure_git
+
+    # Phase 3: Ensure Node.js is installed
     ensure_node
 
-    # Phase 3: Ensure Python is installed
+    # Phase 4: Ensure Python is installed
     ensure_python
 
-    # Phase 4: Setup virtual environment
+    # Phase 5: Setup virtual environment
     setup_venv
 
-    # Phase 5: Install dependencies
+    # Phase 6: Install dependencies
     install_pip_dependencies
     check_npm
     install_npm_dependencies
 
-    # Phase 6: Run the application
+    # Phase 7: Run the application
     echo ""
     log_success "Setup complete! Starting OllaForge..."
     echo ""

@@ -49,6 +49,10 @@ PROJECT_ROOT = Path(__file__).parent.resolve()
 UI_DIR = PROJECT_ROOT / "ui"
 API_DIR = PROJECT_ROOT / "api"
 NODE_DIR = PROJECT_ROOT / ".node"
+LLAMA_CPP_DIR = PROJECT_ROOT / ".llama.cpp"
+
+# Default llama.cpp repository URL
+DEFAULT_LLAMA_URL = "https://github.com/ggml-org/llama.cpp"
 
 
 def is_port_available(port: int, host: str = "127.0.0.1") -> bool:
@@ -161,6 +165,98 @@ def find_suitable_node() -> tuple[Path | None, Path | None]:
                 return (global_node, Path(npm_path))
 
     return (None, None)
+
+
+def setup_llama_cpp() -> bool:
+    """
+    Ensure llama.cpp is available in the .llama.cpp directory.
+
+    If not present, clones the repository and installs Python dependencies.
+
+    Returns:
+        True if llama.cpp is ready, False if setup failed.
+    """
+    llama_url = os.environ.get("OLLAFORGE_LLAMA_URL", "").strip()
+    if not llama_url:
+        llama_url = DEFAULT_LLAMA_URL
+
+    # Check if llama.cpp directory exists and has content
+    if LLAMA_CPP_DIR.exists() and (LLAMA_CPP_DIR / ".git").exists():
+        print(f"[SETUP] llama.cpp found at {LLAMA_CPP_DIR}")
+        return True
+
+    print(f"[SETUP] llama.cpp not found, cloning from {llama_url}...")
+
+    # Check if git is available
+    git_path = shutil.which("git")
+    if not git_path:
+        print("[ERROR] Git is not installed. Please install Git first.")
+        print("[ERROR] Run run.sh (Unix) or run.ps1 (Windows) to install Git automatically.")
+        return False
+
+    # Clone the repository (only HEAD of default branch)
+    try:
+        result = subprocess.run(
+            [
+                git_path,
+                "clone",
+                "--depth",
+                "1",
+                "--single-branch",
+                llama_url,
+                str(LLAMA_CPP_DIR),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5 minutes timeout for clone
+        )
+
+        if result.returncode != 0:
+            print(f"[ERROR] Failed to clone llama.cpp repository:")
+            print(f"[ERROR] {result.stderr}")
+            return False
+
+        print("[SETUP] Successfully cloned llama.cpp")
+
+    except subprocess.TimeoutExpired:
+        print("[ERROR] Cloning llama.cpp timed out after 5 minutes.")
+        # Clean up partial clone
+        if LLAMA_CPP_DIR.exists():
+            shutil.rmtree(LLAMA_CPP_DIR, ignore_errors=True)
+        return False
+    except OSError as e:
+        print(f"[ERROR] Failed to run git: {e}")
+        return False
+
+    # Install Python dependencies from llama.cpp
+    requirements_file = LLAMA_CPP_DIR / "requirements.txt"
+    if requirements_file.exists():
+        print("[SETUP] Installing llama.cpp Python dependencies...")
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "-r", str(requirements_file)],
+                capture_output=True,
+                text=True,
+                timeout=300,  # 5 minutes timeout for pip install
+            )
+
+            if result.returncode != 0:
+                print("[ERROR] Failed to install llama.cpp dependencies:")
+                print(f"[ERROR] {result.stderr}")
+                return False
+
+            print("[SETUP] Successfully installed llama.cpp dependencies")
+
+        except subprocess.TimeoutExpired:
+            print("[ERROR] Installing llama.cpp dependencies timed out after 5 minutes.")
+            return False
+        except OSError as e:
+            print(f"[ERROR] Failed to run pip: {e}")
+            return False
+    else:
+        print("[WARN] No requirements.txt found in llama.cpp repository")
+
+    return True
 
 
 def start_backend(port: int, ui_origin: str) -> subprocess.Popen:
@@ -317,6 +413,13 @@ def main() -> int:
     print("=" * 60)
     print("OllaForge - Starting services...")
     print("=" * 60)
+    print()
+
+    # Setup llama.cpp first
+    print("[SETUP] Checking llama.cpp...")
+    if not setup_llama_cpp():
+        print("[ERROR] llama.cpp setup failed. Cannot continue.")
+        return 1
     print()
 
     # Check for Node.js first
