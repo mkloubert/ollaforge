@@ -14,28 +14,4 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import { BrowserRouter } from 'react-router';
-
-import "./i18n";
-
-import { ThemeProvider } from "@/components/theme-provider";
-import App from './App.tsx';
-
-import './index.css';
-
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <BrowserRouter>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="system"
-        enableSystem
-        disableTransitionOnChange
-      >
-        <App />
-      </ThemeProvider>
-    </BrowserRouter>
-  </StrictMode>,
-);
+export * from "./project";

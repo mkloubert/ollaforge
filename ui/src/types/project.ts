@@ -14,28 +14,37 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import { BrowserRouter } from 'react-router';
+export interface Project {
+  slug: string;
+  name: string;
+  description?: string | null;
+  path: string;
+}
 
-import "./i18n";
+export interface CreateProjectRequest {
+  name: string;
+  description?: string | null;
+}
 
-import { ThemeProvider } from "@/components/theme-provider";
-import App from './App.tsx';
+export interface CreateProjectResponse {
+  slug: string;
+  name: string;
+  description?: string | null;
+}
 
-import './index.css';
+export interface UpdateProjectRequest {
+  name: string;
+  description?: string | null;
+}
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <BrowserRouter>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="system"
-        enableSystem
-        disableTransitionOnChange
-      >
-        <App />
-      </ThemeProvider>
-    </BrowserRouter>
-  </StrictMode>,
-);
+export interface UpdateProjectResponse {
+  slug: string;
+  name: string;
+  description?: string | null;
+}
+
+export interface ApiErrorResponse {
+  detail: {
+    error_code: string;
+  };
+}

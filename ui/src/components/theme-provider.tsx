@@ -14,28 +14,10 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import { BrowserRouter } from 'react-router';
+import { ThemeProvider as NextThemesProvider } from "next-themes";
 
-import "./i18n";
+type ThemeProviderProps = React.ComponentProps<typeof NextThemesProvider>;
 
-import { ThemeProvider } from "@/components/theme-provider";
-import App from './App.tsx';
-
-import './index.css';
-
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <BrowserRouter>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="system"
-        enableSystem
-        disableTransitionOnChange
-      >
-        <App />
-      </ThemeProvider>
-    </BrowserRouter>
-  </StrictMode>,
-);
+export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
+  return <NextThemesProvider {...props}>{children}</NextThemesProvider>;
+}

@@ -14,58 +14,22 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import { Routes, Route } from "react-router";
+
 import "./App.css";
-import { useHealthCheck } from "@/hooks/useHealthCheck";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Spinner } from "@/components/ui/spinner";
+import { Header } from "@/components/layout";
+import { HomePage, ProjectDetailPage } from "@/pages";
 
 function App() {
-  const { isLoading, isHealthy, error, refetch } = useHealthCheck();
-
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-2xl">OllaForge</CardTitle>
-          <CardDescription>
-            Training LLMs with your own data for Ollama
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">API Status</span>
-            {isLoading ? (
-              <Badge variant="secondary" className="gap-1.5">
-                <Spinner className="size-3" />
-                Checking...
-              </Badge>
-            ) : isHealthy ? (
-              <Badge variant="default" className="bg-green-600 hover:bg-green-700">
-                Connected
-              </Badge>
-            ) : (
-              <Badge
-                variant="destructive"
-                className="cursor-pointer"
-                onClick={refetch}
-                title={error || "Click to retry"}
-              >
-                Disconnected
-              </Badge>
-            )}
-          </div>
-          {error && !isLoading && (
-            <p className="mt-2 text-xs text-destructive">{error}</p>
-          )}
-        </CardContent>
-      </Card>
+    <div className="relative min-h-screen flex flex-col">
+      <Header />
+      <main className="flex-1">
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/projects/:slug" element={<ProjectDetailPage />} />
+        </Routes>
+      </main>
     </div>
   );
 }
