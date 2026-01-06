@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import api from "./api";
-import type { DataFile, UploadDataFileResponse } from "@/types";
+import type { DataFile, DataFileContentResponse, UploadDataFileResponse } from "@/types";
 
 export async function fetchDataFiles(projectSlug: string): Promise<DataFile[]> {
   const response = await api.get<DataFile[]>(
@@ -50,4 +50,14 @@ export async function deleteDataFile(
   await api.delete(
     `/api/projects/${encodeURIComponent(projectSlug)}/data/${encodeURIComponent(filename)}`
   );
+}
+
+export async function fetchDataFileContent(
+  projectSlug: string,
+  filename: string
+): Promise<DataFileContentResponse> {
+  const response = await api.get<DataFileContentResponse>(
+    `/api/projects/${encodeURIComponent(projectSlug)}/data/${encodeURIComponent(filename)}`
+  );
+  return response.data;
 }

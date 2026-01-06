@@ -93,6 +93,23 @@ export interface TranslationSchema {
       uploadButton: string;
       uploading: string;
       deleteConfirm: string;
+      previewRowCount: string;
+      previewTruncated: string;
+      previewEmpty: string;
+      previewError: string;
+      invalidRow: string;
+      showRawContent: string;
+      rawContentTitle: string;
+      rawContentLength: string;
+      errorCount: string;
+      validationErrors: {
+        INVALID_JSON: string;
+        NOT_OBJECT: string;
+        MISSING_INSTRUCTION: string;
+        MISSING_OUTPUT: string;
+        INVALID_INSTRUCTION_TYPE: string;
+        INVALID_OUTPUT_TYPE: string;
+      };
     };
     training: {
       title: string;

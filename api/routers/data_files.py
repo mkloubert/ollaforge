@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import json
 import os
 import re
 from pathlib import Path
@@ -23,12 +24,19 @@ from fastapi import APIRouter, HTTPException, UploadFile, status
 
 from config import get_config
 from error_codes import ErrorCode
-from models.data_file import DataFileInfo, UploadDataFileResponse, format_file_size
+from models.data_file import (
+    DataFileContentResponse,
+    DataFileInfo,
+    DataFileRow,
+    UploadDataFileResponse,
+    format_file_size,
+)
 
 router = APIRouter(prefix="/api/projects", tags=["data-files"])
 
 ALLOWED_EXTENSIONS = {".jsonl"}
 CHUNK_SIZE = 64 * 1024  # 64 KB chunks for streaming
+MAX_PREVIEW_ROWS = 100  # Maximum rows to return for preview
 
 
 def get_project_data_dir(slug: str) -> Path:
@@ -238,4 +246,117 @@ async def delete_data_file(slug: str, filename: str) -> None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error_code": ErrorCode.DATA_FILE_DELETE_FAILED},
+        )
+
+
+@router.get(
+    "/{slug}/data/{filename}",
+    response_model=DataFileContentResponse,
+    summary="Get data file content",
+    description="Returns the content of a JSONL data file as parsed JSON rows.",
+)
+async def get_data_file_content(slug: str, filename: str) -> DataFileContentResponse:
+    """Get the content of a data file."""
+    validate_project_exists(slug)
+
+    # Sanitize filename to prevent path traversal
+    safe_filename = sanitize_filename(filename)
+    data_dir = get_project_data_dir(slug)
+    file_path = data_dir / safe_filename
+
+    # Check if file exists
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error_code": ErrorCode.DATA_FILE_NOT_FOUND},
+        )
+
+    # Verify it's within the data directory (prevent path traversal)
+    try:
+        file_path.resolve().relative_to(data_dir.resolve())
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error_code": ErrorCode.DATA_FILE_NOT_FOUND},
+        )
+
+    def validate_row(parsed: dict) -> str | None:
+        """
+        Validate that a row has the required schema.
+        Returns error code if invalid, None if valid.
+        Expected schema: {"instruction": string, "output": string}
+        """
+        # Check required fields
+        if "instruction" not in parsed:
+            return "MISSING_INSTRUCTION"
+        if "output" not in parsed:
+            return "MISSING_OUTPUT"
+
+        # Check field types
+        if not isinstance(parsed["instruction"], str):
+            return "INVALID_INSTRUCTION_TYPE"
+        if not isinstance(parsed["output"], str):
+            return "INVALID_OUTPUT_TYPE"
+
+        return None
+
+    try:
+        rows: list[DataFileRow] = []
+        total_rows = 0
+        truncated = False
+        line_number = 0
+
+        async with aiofiles.open(file_path, "r", encoding="utf-8") as f:
+            async for line in f:
+                line_number += 1
+                raw_line = line.rstrip("\n\r")
+
+                if not raw_line.strip():
+                    continue
+
+                total_rows += 1
+
+                if len(rows) < MAX_PREVIEW_ROWS:
+                    is_valid = False
+                    data = None
+                    error = None
+
+                    try:
+                        parsed = json.loads(raw_line)
+                        if isinstance(parsed, dict):
+                            error = validate_row(parsed)
+                            if error is None:
+                                is_valid = True
+                                data = parsed
+                            else:
+                                data = parsed
+                        else:
+                            error = "NOT_OBJECT"
+                    except json.JSONDecodeError:
+                        error = "INVALID_JSON"
+
+                    rows.append(
+                        DataFileRow(
+                            line_number=line_number,
+                            is_valid=is_valid,
+                            error=error,
+                            data=data,
+                            raw=raw_line,
+                            raw_length=len(raw_line),
+                        )
+                    )
+                else:
+                    truncated = True
+
+        return DataFileContentResponse(
+            filename=safe_filename,
+            rows=rows,
+            total_rows=total_rows,
+            truncated=truncated,
+        )
+
+    except OSError:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error_code": ErrorCode.DATA_FILE_READ_FAILED},
         )

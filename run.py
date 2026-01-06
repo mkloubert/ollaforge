@@ -180,26 +180,44 @@ def setup_llama_cpp() -> bool:
     if not llama_url:
         llama_url = DEFAULT_LLAMA_URL
 
-    # Check if llama.cpp directory exists and has content
-    if LLAMA_CPP_DIR.exists() and (LLAMA_CPP_DIR / ".git").exists():
-        print(f"[SETUP] llama.cpp found at {LLAMA_CPP_DIR}")
-        # Still need to ensure dependencies are installed (e.g., after venv recreation)
-        requirements_file = LLAMA_CPP_DIR / "requirements.txt"
-        if requirements_file.exists():
-            print("[SETUP] Ensuring llama.cpp Python dependencies are installed...")
+    # Key file that indicates a valid llama.cpp installation
+    convert_script = LLAMA_CPP_DIR / "convert_hf_to_gguf.py"
+
+    # Check if llama.cpp directory exists and is valid
+    # Valid means: has .git directory OR has the key convert script
+    if LLAMA_CPP_DIR.exists():
+        is_git_repo = (LLAMA_CPP_DIR / ".git").exists()
+        has_convert_script = convert_script.exists()
+
+        if is_git_repo or has_convert_script:
+            print(f"[SETUP] llama.cpp found at {LLAMA_CPP_DIR}")
+            # Still need to ensure dependencies are installed (e.g., after venv recreation)
+            requirements_file = LLAMA_CPP_DIR / "requirements.txt"
+            if requirements_file.exists():
+                print("[SETUP] Ensuring llama.cpp Python dependencies are installed...")
+                try:
+                    result = subprocess.run(
+                        [sys.executable, "-m", "pip", "install", "-q", "-r", str(requirements_file)],
+                        capture_output=True,
+                        text=True,
+                        timeout=300,
+                    )
+                    if result.returncode != 0:
+                        print("[WARN] Could not verify llama.cpp dependencies:")
+                        print(f"[WARN] {result.stderr}")
+                except (subprocess.TimeoutExpired, OSError) as e:
+                    print(f"[WARN] Could not verify llama.cpp dependencies: {e}")
+            return True
+        else:
+            # Directory exists but is neither a git repo nor has the convert script
+            # This could be from a failed clone - remove and try again
+            print(f"[SETUP] Found incomplete llama.cpp at {LLAMA_CPP_DIR}, removing...")
             try:
-                result = subprocess.run(
-                    [sys.executable, "-m", "pip", "install", "-q", "-r", str(requirements_file)],
-                    capture_output=True,
-                    text=True,
-                    timeout=300,
-                )
-                if result.returncode != 0:
-                    print("[WARN] Could not verify llama.cpp dependencies:")
-                    print(f"[WARN] {result.stderr}")
-            except (subprocess.TimeoutExpired, OSError) as e:
-                print(f"[WARN] Could not verify llama.cpp dependencies: {e}")
-        return True
+                shutil.rmtree(LLAMA_CPP_DIR)
+            except OSError as e:
+                print(f"[ERROR] Could not remove incomplete llama.cpp directory: {e}")
+                print("[ERROR] Please manually delete the .llama.cpp directory and try again.")
+                return False
 
     print(f"[SETUP] llama.cpp not found, cloning from {llama_url}...")
 

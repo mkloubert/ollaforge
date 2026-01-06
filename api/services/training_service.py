@@ -437,11 +437,20 @@ class TrainingService:
             job.device = DeviceType.CPU
             return "cpu"
 
+    def _validate_training_row(self, data: dict) -> bool:
+        """Validate that a row has the required schema for training."""
+        if "instruction" not in data or "output" not in data:
+            return False
+        if not isinstance(data["instruction"], str) or not isinstance(data["output"], str):
+            return False
+        return True
+
     def _load_data(self, job: TrainingJob) -> list[dict]:
-        """Load training data from JSONL files."""
+        """Load training data from JSONL files, skipping invalid rows."""
         all_data = []
         data_dir = job.project_path / "data"
         total_files = len(job.data_files)
+        total_skipped = 0
 
         for idx, filename in enumerate(job.data_files):
             file_path = data_dir / filename
@@ -449,14 +458,57 @@ class TrainingService:
                 raise FileNotFoundError(f"Data file not found: {filename}")
 
             logger.info(f"[{job.job_id}] Loading: {filename}")
+            skipped_in_file = 0
+            line_number = 0
+
             with open(file_path, "r", encoding="utf-8") as f:
                 for line in f:
-                    if line.strip():
-                        all_data.append(json.loads(line))
+                    line_number += 1
+                    stripped = line.strip()
+
+                    # Skip empty lines
+                    if not stripped:
+                        continue
+
+                    # Try to parse JSON
+                    try:
+                        data = json.loads(stripped)
+                    except json.JSONDecodeError as e:
+                        logger.warning(
+                            f"[{job.job_id}] {filename}:{line_number} - Invalid JSON: {e}"
+                        )
+                        skipped_in_file += 1
+                        continue
+
+                    # Validate schema
+                    if not isinstance(data, dict):
+                        logger.warning(
+                            f"[{job.job_id}] {filename}:{line_number} - Not a JSON object"
+                        )
+                        skipped_in_file += 1
+                        continue
+
+                    if not self._validate_training_row(data):
+                        logger.warning(
+                            f"[{job.job_id}] {filename}:{line_number} - Invalid schema (missing or invalid instruction/output)"
+                        )
+                        skipped_in_file += 1
+                        continue
+
+                    all_data.append(data)
+
+            if skipped_in_file > 0:
+                logger.warning(
+                    f"[{job.job_id}] {filename}: Skipped {skipped_in_file} invalid rows"
+                )
+                total_skipped += skipped_in_file
 
             job.set_task_progress("load_data", int(((idx + 1) / total_files) * 100))
 
-        logger.info(f"[{job.job_id}] Loaded {len(all_data)} training examples")
+        logger.info(
+            f"[{job.job_id}] Loaded {len(all_data)} training examples"
+            + (f" (skipped {total_skipped} invalid rows)" if total_skipped > 0 else "")
+        )
         return all_data
 
     def _load_model(self, job, device, torch, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, prepare_model_for_kbit_training):

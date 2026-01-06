@@ -33,6 +33,26 @@ class UploadDataFileResponse(BaseModel):
     size_formatted: str = Field(..., description="Human-readable file size")
 
 
+class DataFileRow(BaseModel):
+    """A single row from a JSONL file."""
+
+    line_number: int = Field(..., description="The line number in the file (1-based)")
+    is_valid: bool = Field(..., description="Whether the row has valid JSON and schema")
+    error: str | None = Field(None, description="Validation error code if invalid")
+    data: dict | None = Field(None, description="The parsed JSON data (if valid)")
+    raw: str = Field(..., description="The raw line content")
+    raw_length: int = Field(..., description="Length of the raw content in characters")
+
+
+class DataFileContentResponse(BaseModel):
+    """Response containing the content of a data file."""
+
+    filename: str = Field(..., description="The name of the file")
+    rows: list[DataFileRow] = Field(..., description="The rows from the JSONL file")
+    total_rows: int = Field(..., description="Total number of rows in the file")
+    truncated: bool = Field(..., description="Whether the result was truncated")
+
+
 def format_file_size(size_bytes: int) -> str:
     """
     Format file size to human-readable string.

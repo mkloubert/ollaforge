@@ -17,6 +17,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
+  AlertTriangle,
   ArrowLeft,
   Check,
   Circle,
@@ -35,6 +36,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router";
 
+import { DataFilePreviewDialog } from "@/components/data-file-preview-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -73,6 +75,12 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useDataFiles } from "@/hooks/useDataFiles";
 import { useModels } from "@/hooks/useModels";
 import { useProject } from "@/hooks/useProject";
@@ -155,6 +163,8 @@ export function ProjectDetailPage() {
   const [selectedModelOverride, setSelectedModelOverride] = useState<string | null>(null);
   const [targetNameOverride, setTargetNameOverride] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [previewFile, setPreviewFile] = useState<string | null>(null);
+  const [fileErrorCounts, setFileErrorCounts] = useState<Record<string, number>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Combined models list: API models + saved project model (if not already in list)
@@ -312,8 +322,24 @@ export function ProjectDetailPage() {
   const handleDelete = useCallback(
     async (filename: string) => {
       await remove(filename);
+      // Clear error count for deleted file
+      setFileErrorCounts((prev) => {
+        const next = { ...prev };
+        delete next[filename];
+        return next;
+      });
     },
     [remove]
+  );
+
+  const handleFileErrorCountChange = useCallback(
+    (filename: string, errorCount: number) => {
+      setFileErrorCounts((prev) => ({
+        ...prev,
+        [filename]: errorCount,
+      }));
+    },
+    []
   );
 
   const handleStartTraining = useCallback(async () => {
@@ -564,35 +590,60 @@ export function ProjectDetailPage() {
                       {t("dataFiles.empty")}
                     </p>
                   ) : (
-                    <div className="flex flex-col gap-2">
-                      {files.map((file) => (
-                        <div
-                          key={file.filename}
-                          className="flex items-center justify-between p-3 rounded-lg border bg-card"
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium truncate">
-                                {file.filename}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {file.size_formatted}
-                              </p>
+                    <TooltipProvider>
+                      <div className="flex flex-col gap-2">
+                        {files.map((file) => {
+                          const errorCount = fileErrorCounts[file.filename];
+                          const hasErrors = errorCount !== undefined && errorCount > 0;
+
+                          return (
+                            <div
+                              key={file.filename}
+                              className="flex items-center justify-between p-3 rounded-lg border bg-card"
+                            >
+                              <button
+                                type="button"
+                                className="flex items-center gap-3 min-w-0 flex-1 text-left hover:opacity-70 transition-opacity cursor-pointer"
+                                onClick={() => setPreviewFile(file.filename)}
+                              >
+                                <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium truncate">
+                                    {file.filename}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {file.size_formatted}
+                                  </p>
+                                </div>
+                              </button>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {hasErrors && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="p-2">
+                                        <AlertTriangle className="h-4 w-4 text-amber-500" />
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      {t("dataFiles.errorCount", { count: errorCount })}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                  onClick={() => handleDelete(file.filename)}
+                                  disabled={isTrainingActive}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
-                            onClick={() => handleDelete(file.filename)}
-                            disabled={isTrainingActive}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    </TooltipProvider>
                   )}
                 </div>
               </CardContent>
@@ -722,6 +773,15 @@ export function ProjectDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Data File Preview Dialog */}
+      <DataFilePreviewDialog
+        projectSlug={slug || ""}
+        filename={previewFile}
+        open={previewFile !== null}
+        onOpenChange={(open) => !open && setPreviewFile(null)}
+        onErrorCountChange={handleFileErrorCountChange}
+      />
     </div>
   );
 }

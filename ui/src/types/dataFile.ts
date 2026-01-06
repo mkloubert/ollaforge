@@ -25,3 +25,19 @@ export interface UploadDataFileResponse {
   size: number;
   size_formatted: string;
 }
+
+export interface DataFileRow {
+  line_number: number;
+  is_valid: boolean;
+  error: string | null;
+  data: Record<string, unknown> | null;
+  raw: string;
+  raw_length: number;
+}
+
+export interface DataFileContentResponse {
+  filename: string;
+  rows: DataFileRow[];
+  total_rows: number;
+  truncated: boolean;
+}
