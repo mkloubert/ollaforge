@@ -14,13 +14,15 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import type { Resource } from "i18next";
+
 import de from "./de";
 import en from "./en";
 
 export const resources = {
   en,
   de,
-};
+} as unknown as Resource;
 
 export const supportedLanguages = ["en", "de"] as const;
 export type SupportedLanguage = (typeof supportedLanguages)[number];

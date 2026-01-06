@@ -1,2 +1,12 @@
-fastapi==0.128.0
-uvicorn[standard]==0.40.0
+accelerate>=0.26.0
+aiofiles>=23.0.0
+bitsandbytes>=0.42.0
+datasets>=2.16.0
+fastapi>=0.109.0
+huggingface_hub>=0.20.0
+peft>=0.8.0
+python-multipart>=0.0.6
+torch>=2.1.0
+transformers>=4.36.0
+uvicorn[standard]>=0.27.0
+websockets>=12.0

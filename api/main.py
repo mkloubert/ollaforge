@@ -14,15 +14,26 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import logging
 import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
 from config import init_config, get_config
+from routers.data_files import router as data_files_router
 from routers.health import router as health_router
+from routers.models import router as models_router
 from routers.projects import router as projects_router
+from routers.training import router as training_router
 from startup import run_startup_tasks
 
 
@@ -67,8 +78,11 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    application.include_router(data_files_router)
     application.include_router(health_router)
+    application.include_router(models_router)
     application.include_router(projects_router)
+    application.include_router(training_router)
 
     return application
 

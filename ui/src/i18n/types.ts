@@ -29,6 +29,7 @@ export interface TranslationSchema {
       actions: string;
       optional: string;
       edit: string;
+      ok: string;
     };
     app: {
       title: string;
@@ -77,6 +78,58 @@ export interface TranslationSchema {
     project: {
       title: string;
       backToProjects: string;
+      selectModel: string;
+      selectModelPlaceholder: string;
+      configuration: string;
+      status: string;
+    };
+    dataFiles: {
+      title: string;
+      empty: string;
+      dropzone: string;
+      dropzoneActive: string;
+      uploadButton: string;
+      uploading: string;
+      deleteConfirm: string;
+    };
+    training: {
+      title: string;
+      startButton: string;
+      cancelButton: string;
+      noModel: string;
+      noDataFiles: string;
+      status: {
+        idle: string;
+        starting: string;
+        loading_data: string;
+        loading_model: string;
+        training: string;
+        exporting: string;
+        converting: string;
+        completed: string;
+        failed: string;
+        cancelled: string;
+      };
+      progress: string;
+      step: string;
+      device: string;
+      taskList: string;
+      tasks: {
+        detect_device: string;
+        load_data: string;
+        import_libraries: string;
+        load_model: string;
+        setup_lora: string;
+        tokenize: string;
+        train: string;
+        merge_lora: string;
+        convert_gguf: string;
+        create_modelfile: string;
+      };
+      errorTitle: string;
+      completed: string;
+      completedDescription: string;
+      cancelled: string;
     };
     errors: {
       ERR_PROJECT_1001: string;
@@ -86,6 +139,22 @@ export interface TranslationSchema {
       ERR_PROJECT_1005: string;
       ERR_PROJECT_1006: string;
       ERR_PROJECT_1007: string;
+      ERR_MODEL_2001: string;
+      ERR_MODEL_2002: string;
+      ERR_DATA_3001: string;
+      ERR_DATA_3002: string;
+      ERR_DATA_3003: string;
+      ERR_DATA_3004: string;
+      ERR_DATA_3005: string;
+      ERR_TRAINING_4001: string;
+      ERR_TRAINING_4002: string;
+      ERR_TRAINING_4003: string;
+      ERR_TRAINING_4004: string;
+      ERR_TRAINING_4005: string;
+      ERR_TRAINING_4006: string;
+      ERR_TRAINING_4007: string;
+      ERR_TRAINING_4008: string;
+      ERR_TRAINING_4009: string;
       unknown: string;
     };
   };

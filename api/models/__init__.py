@@ -14,16 +14,40 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from models.data_file import DataFileInfo, UploadDataFileResponse, format_file_size
+from models.model import ModelInfo
 from models.project import (
     CreateProjectRequest,
     CreateProjectResponse,
     ErrorResponse,
     ProjectInfo,
 )
+from models.training import (
+    DeviceType,
+    StartTrainingRequest,
+    StartTrainingResponse,
+    TaskStatus,
+    TrainingProgress,
+    TrainingStatus,
+    TrainingStatusResponse,
+    TrainingTask,
+)
 
 __all__ = [
     "CreateProjectRequest",
     "CreateProjectResponse",
+    "DataFileInfo",
+    "DeviceType",
     "ErrorResponse",
+    "format_file_size",
+    "ModelInfo",
     "ProjectInfo",
+    "StartTrainingRequest",
+    "StartTrainingResponse",
+    "TaskStatus",
+    "TrainingProgress",
+    "TrainingStatus",
+    "TrainingStatusResponse",
+    "TrainingTask",
+    "UploadDataFileResponse",
 ]

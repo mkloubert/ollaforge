@@ -183,6 +183,22 @@ def setup_llama_cpp() -> bool:
     # Check if llama.cpp directory exists and has content
     if LLAMA_CPP_DIR.exists() and (LLAMA_CPP_DIR / ".git").exists():
         print(f"[SETUP] llama.cpp found at {LLAMA_CPP_DIR}")
+        # Still need to ensure dependencies are installed (e.g., after venv recreation)
+        requirements_file = LLAMA_CPP_DIR / "requirements.txt"
+        if requirements_file.exists():
+            print("[SETUP] Ensuring llama.cpp Python dependencies are installed...")
+            try:
+                result = subprocess.run(
+                    [sys.executable, "-m", "pip", "install", "-q", "-r", str(requirements_file)],
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
+                )
+                if result.returncode != 0:
+                    print("[WARN] Could not verify llama.cpp dependencies:")
+                    print(f"[WARN] {result.stderr}")
+            except (subprocess.TimeoutExpired, OSError) as e:
+                print(f"[WARN] Could not verify llama.cpp dependencies: {e}")
         return True
 
     print(f"[SETUP] llama.cpp not found, cloning from {llama_url}...")

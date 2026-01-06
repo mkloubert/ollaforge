@@ -14,7 +14,14 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-export * from "./dataFile";
-export * from "./model";
-export * from "./project";
-export * from "./training";
+export interface DataFile {
+  filename: string;
+  size: number;
+  size_formatted: string;
+}
+
+export interface UploadDataFileResponse {
+  filename: string;
+  size: number;
+  size_formatted: string;
+}
