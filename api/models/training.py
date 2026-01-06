@@ -49,6 +49,7 @@ class TrainingTask(BaseModel):
     task_id: str = Field(..., description="Unique task identifier")
     status: TaskStatus = Field(default=TaskStatus.PENDING, description="Task status")
     progress: int = Field(default=0, ge=0, le=100, description="Progress percentage (0-100)")
+    error_count: int = Field(default=0, ge=0, description="Number of non-fatal errors/warnings during task")
 
 
 class DeviceType(str, Enum):
@@ -57,6 +58,15 @@ class DeviceType(str, Enum):
     CUDA = "cuda"
     MPS = "mps"
     CPU = "cpu"
+
+
+class DataFileStatus(BaseModel):
+    """Status of a data file during training."""
+
+    filename: str = Field(..., description="Name of the data file")
+    status: TaskStatus = Field(default=TaskStatus.PENDING, description="Processing status")
+    rows_loaded: int = Field(default=0, description="Number of valid rows loaded")
+    rows_skipped: int = Field(default=0, description="Number of invalid rows skipped")
 
 
 class StartTrainingRequest(BaseModel):
@@ -99,6 +109,7 @@ class TrainingProgress(BaseModel):
     device: DeviceType | None = Field(default=None, description="Compute device being used")
     error_code: str | None = Field(default=None, description="Error code if failed")
     tasks: list[TrainingTask] = Field(default_factory=list, description="List of tasks")
+    file_statuses: list[DataFileStatus] = Field(default_factory=list, description="Status of each data file")
 
 
 class TrainingStatusResponse(BaseModel):

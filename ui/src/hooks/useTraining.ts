@@ -24,6 +24,7 @@ import {
   startTraining,
 } from "@/lib/training";
 import type {
+  DataFileStatus,
   StartTrainingRequest,
   TrainingProgress,
   TrainingStatus,
@@ -38,6 +39,7 @@ interface UseTrainingResult {
   isStarting: boolean;
   isConnected: boolean;
   tasks: TrainingTask[];
+  fileStatuses: DataFileStatus[];
   error: string | null;
   start: (request: StartTrainingRequest) => Promise<boolean>;
   cancel: () => Promise<boolean>;
@@ -54,6 +56,7 @@ export function useTraining(
   const [isStarting, setIsStarting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [tasks, setTasks] = useState<TrainingTask[]>([]);
+  const [fileStatuses, setFileStatuses] = useState<DataFileStatus[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -143,6 +146,11 @@ export function useTraining(
               setTasks(data.tasks);
             }
 
+            // Update file statuses
+            if (data.file_statuses) {
+              setFileStatuses(data.file_statuses);
+            }
+
             setProgress({
               status: newStatus,
               progress: data.progress ?? 0,
@@ -151,6 +159,7 @@ export function useTraining(
               device: (data.device as "cuda" | "mps" | "cpu" | null) ?? null,
               error_code: data.error_code ?? null,
               tasks: data.tasks ?? [],
+              file_statuses: data.file_statuses ?? [],
             });
             break;
           }
@@ -160,6 +169,9 @@ export function useTraining(
             setCanStart(true);
             if (data.tasks) {
               setTasks(data.tasks);
+            }
+            if (data.file_statuses) {
+              setFileStatuses(data.file_statuses);
             }
             // Set error if failed
             if (data.error_code && finalStatus === "failed") {
@@ -213,6 +225,7 @@ export function useTraining(
       setJobId(null);
       setCanStart(true);
       setTasks([]);
+      setFileStatuses([]);
       closeWebSocket(true);
       return;
     }
@@ -231,6 +244,9 @@ export function useTraining(
         setCanStart(data.can_start);
         if (data.progress.tasks) {
           setTasks(data.progress.tasks);
+        }
+        if (data.progress.file_statuses) {
+          setFileStatuses(data.progress.file_statuses);
         }
 
         if (data.progress.error_code) {
@@ -265,6 +281,7 @@ export function useTraining(
       setIsStarting(true);
       setError(null);
       setTasks([]);
+      setFileStatuses([]);
 
       try {
         const response = await startTraining(projectSlug, request);
@@ -320,6 +337,7 @@ export function useTraining(
     isStarting,
     isConnected,
     tasks,
+    fileStatuses,
     error,
     start,
     cancel: cancelFn,

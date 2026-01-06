@@ -108,7 +108,7 @@ async def websocket_training_updates(websocket: WebSocket, slug: str):
             job = training_manager.get_job(slug)
 
             if job is None:
-                # No job, send idle status with empty tasks
+                # No job, send idle status with empty tasks and file statuses
                 await websocket.send_json({
                     "type": "status",
                     "job_id": None,
@@ -120,19 +120,30 @@ async def websocket_training_updates(websocket: WebSocket, slug: str):
                     "error_code": None,
                     "can_start": True,
                     "tasks": [],
+                    "file_statuses": [],
                 })
                 await asyncio.sleep(1)
                 continue
 
-            # Send progress update with tasks
+            # Send progress update with tasks and file statuses
             progress = job.get_progress()
             tasks_data = [
                 {
                     "task_id": task.task_id,
                     "status": task.status,
                     "progress": task.progress,
+                    "error_count": task.error_count,
                 }
                 for task in progress.tasks
+            ]
+            file_statuses_data = [
+                {
+                    "filename": fs.filename,
+                    "status": fs.status,
+                    "rows_loaded": fs.rows_loaded,
+                    "rows_skipped": fs.rows_skipped,
+                }
+                for fs in progress.file_statuses
             ]
 
             await websocket.send_json({
@@ -146,6 +157,7 @@ async def websocket_training_updates(websocket: WebSocket, slug: str):
                 "error_code": progress.error_code,
                 "can_start": False,
                 "tasks": tasks_data,
+                "file_statuses": file_statuses_data,
             })
 
             # Check if job is done
@@ -160,6 +172,7 @@ async def websocket_training_updates(websocket: WebSocket, slug: str):
                     "status": job.status,
                     "error_code": job.error_code,
                     "tasks": tasks_data,
+                    "file_statuses": file_statuses_data,
                 })
                 logger.info(f"Training completed for {slug}, status: {job.status}")
                 # Don't break - keep connection open for potential new jobs

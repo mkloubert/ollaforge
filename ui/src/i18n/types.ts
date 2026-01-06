@@ -102,6 +102,13 @@ export interface TranslationSchema {
       rawContentTitle: string;
       rawContentLength: string;
       errorCount: string;
+      fileStatus: {
+        pending: string;
+        in_progress: string;
+        completed: string;
+        failed: string;
+        skipped: string;
+      };
       validationErrors: {
         INVALID_JSON: string;
         NOT_OBJECT: string;
@@ -136,7 +143,6 @@ export interface TranslationSchema {
       taskList: string;
       tasks: {
         detect_device: string;
-        load_data: string;
         import_libraries: string;
         load_model: string;
         setup_lora: string;
@@ -146,6 +152,7 @@ export interface TranslationSchema {
         convert_gguf: string;
         create_modelfile: string;
       };
+      taskWarnings: string;
       errorTitle: string;
       completed: string;
       completedDescription: string;

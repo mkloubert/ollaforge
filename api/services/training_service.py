@@ -17,9 +17,11 @@
 import json
 import logging
 import platform
+import shutil
 import subprocess
 import sys
 import threading
+import time
 import traceback
 from datetime import datetime
 from pathlib import Path
@@ -30,6 +32,7 @@ from error_codes import ErrorCode
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 from models.training import (
+    DataFileStatus,
     DeviceType,
     TaskStatus,
     TrainingProgress,
@@ -42,7 +45,6 @@ MAX_LENGTH = 512
 # Task IDs in order
 TASK_IDS = [
     "detect_device",
-    "load_data",
     "import_libraries",
     "load_model",
     "setup_lora",
@@ -85,6 +87,14 @@ class TrainingJob:
         for task_id in TASK_IDS:
             self.tasks[task_id] = TrainingTask(task_id=task_id)
 
+        # Initialize file statuses
+        self.file_statuses: dict[str, DataFileStatus] = {}
+        for filename in data_files:
+            self.file_statuses[filename] = DataFileStatus(filename=filename)
+
+        # Cache directory for tokenized dataset
+        self.cache_dir = project_path / ".cache" / "training"
+
         self._cancel_requested = False
         self._thread: threading.Thread | None = None
 
@@ -99,6 +109,16 @@ class TrainingJob:
         """Update a task's progress percentage."""
         if task_id in self.tasks:
             self.tasks[task_id].progress = min(100, max(0, progress))
+
+    def increment_task_error_count(self, task_id: str) -> None:
+        """Increment the error count for a task."""
+        if task_id in self.tasks:
+            self.tasks[task_id].error_count += 1
+
+    def set_task_error_count(self, task_id: str, count: int) -> None:
+        """Set the error count for a task."""
+        if task_id in self.tasks:
+            self.tasks[task_id].error_count = count
 
     def complete_task(self, task_id: str) -> None:
         """Mark a task as completed."""
@@ -116,10 +136,37 @@ class TrainingJob:
             self.tasks[task_id].status = TaskStatus.SKIPPED
             logger.info(f"[{self.job_id}] Task {task_id} skipped")
 
+    def set_file_status(
+        self,
+        filename: str,
+        status: TaskStatus,
+        rows_loaded: int = 0,
+        rows_skipped: int = 0,
+    ) -> None:
+        """Update a file's processing status."""
+        if filename in self.file_statuses:
+            self.file_statuses[filename].status = status
+            self.file_statuses[filename].rows_loaded = rows_loaded
+            self.file_statuses[filename].rows_skipped = rows_skipped
+            logger.info(f"[{self.job_id}] File {filename}: {status}")
+
+    def get_file_statuses_list(self) -> list[DataFileStatus]:
+        """Get file statuses as ordered list (preserving original order)."""
+        return [self.file_statuses[filename] for filename in self.data_files if filename in self.file_statuses]
+
     def request_cancel(self) -> None:
         """Request cancellation of the training job."""
         self._cancel_requested = True
         logger.info(f"[{self.job_id}] Cancellation requested")
+
+    def cleanup_cache(self) -> None:
+        """Clean up the cache directory."""
+        if self.cache_dir.exists():
+            try:
+                shutil.rmtree(self.cache_dir)
+                logger.info(f"[{self.job_id}] Cache directory cleaned up: {self.cache_dir}")
+            except Exception as e:
+                logger.warning(f"[{self.job_id}] Failed to clean up cache: {e}")
 
     @property
     def is_cancelled(self) -> bool:
@@ -140,6 +187,7 @@ class TrainingJob:
             device=self.device,
             error_code=self.error_code,
             tasks=self.get_tasks_list(),
+            file_statuses=self.get_file_statuses_list(),
         )
 
 
@@ -238,16 +286,8 @@ class TrainingService:
                 return
             job.complete_task("detect_device")
 
-            # Task 2: Load data
+            # Task 2: Import ML libraries
             job.status = TrainingStatus.LOADING_DATA
-            job.set_task_status("load_data", TaskStatus.IN_PROGRESS)
-            data = self._load_data(job)
-            if job.is_cancelled:
-                self._handle_cancellation(job)
-                return
-            job.complete_task("load_data")
-
-            # Task 3: Import ML libraries
             job.set_task_status("import_libraries", TaskStatus.IN_PROGRESS)
             try:
                 import torch
@@ -308,15 +348,16 @@ class TrainingService:
                 return
             job.complete_task("setup_lora")
 
-            # Task 6: Tokenize dataset
+            # Task 6: Tokenize dataset (streams data from files, memory-efficient)
             job.set_task_status("tokenize", TaskStatus.IN_PROGRESS)
             try:
-                dataset = self._tokenize_dataset(data, tokenizer, Dataset)
+                dataset = self._tokenize_dataset(job, tokenizer, Dataset)
             except Exception as e:
                 job.fail_task("tokenize")
                 job.error_code = ErrorCode.TRAINING_FAILED
                 job.status = TrainingStatus.FAILED
                 logger.error(f"Failed to tokenize dataset: {e}")
+                job.cleanup_cache()
                 return
 
             if job.is_cancelled:
@@ -349,6 +390,7 @@ class TrainingService:
                 job.error_code = ErrorCode.TRAINING_FAILED
                 job.status = TrainingStatus.FAILED
                 logger.error(f"Training failed: {e}")
+                job.cleanup_cache()
                 return
 
             if job.is_cancelled:
@@ -367,6 +409,7 @@ class TrainingService:
                 job.error_code = ErrorCode.TRAINING_EXPORT_FAILED
                 job.status = TrainingStatus.FAILED
                 logger.error(f"Export failed: {e}")
+                job.cleanup_cache()
                 return
 
             if job.is_cancelled:
@@ -385,12 +428,14 @@ class TrainingService:
                 job.error_code = ErrorCode.TRAINING_LLAMA_CPP_NOT_FOUND
                 job.status = TrainingStatus.FAILED
                 logger.error(f"llama.cpp not found: {e}")
+                job.cleanup_cache()
                 return
             except RuntimeError as e:
                 job.fail_task("convert_gguf")
                 job.error_code = ErrorCode.TRAINING_EXPORT_FAILED
                 job.status = TrainingStatus.FAILED
                 logger.error(f"GGUF conversion failed: {e}")
+                job.cleanup_cache()
                 return
 
             if job.is_cancelled:
@@ -408,11 +453,16 @@ class TrainingService:
             job.progress = 100.0
             logger.info(f"Job {job.job_id} completed successfully")
 
+            # Clean up cache after successful completion
+            job.cleanup_cache()
+
         except Exception as e:
             logger.error(f"Unexpected error in job {job.job_id}: {e}")
             logger.error(traceback.format_exc())
             job.error_code = ErrorCode.TRAINING_FAILED
             job.status = TrainingStatus.FAILED
+            # Clean up cache after failure
+            job.cleanup_cache()
 
     def _detect_device(self, job: TrainingJob) -> str:
         """Detect the best available compute device."""
@@ -445,20 +495,33 @@ class TrainingService:
             return False
         return True
 
-    def _load_data(self, job: TrainingJob) -> list[dict]:
-        """Load training data from JSONL files, skipping invalid rows."""
-        all_data = []
+    def _create_data_generator(self, job: TrainingJob, error_tracker: dict):
+        """
+        Generator that yields training examples from JSONL files.
+        This is memory-efficient as it streams data instead of loading all at once.
+        Updates file status and tracks errors in error_tracker dict.
+        """
         data_dir = job.project_path / "data"
         total_files = len(job.data_files)
-        total_skipped = 0
+
+        # Small delay to ensure WebSocket can show initial PENDING states
+        time.sleep(0.5)
 
         for idx, filename in enumerate(job.data_files):
             file_path = data_dir / filename
-            if not file_path.exists():
-                raise FileNotFoundError(f"Data file not found: {filename}")
 
-            logger.info(f"[{job.job_id}] Loading: {filename}")
+            # Mark file as in progress
+            job.set_file_status(filename, TaskStatus.IN_PROGRESS)
+
+            if not file_path.exists():
+                job.set_file_status(filename, TaskStatus.FAILED)
+                error_tracker["total"] += 1
+                logger.error(f"[{job.job_id}] File not found: {filename}")
+                continue
+
+            logger.info(f"[{job.job_id}] Processing: {filename}")
             skipped_in_file = 0
+            loaded_in_file = 0
             line_number = 0
 
             with open(file_path, "r", encoding="utf-8") as f:
@@ -466,7 +529,7 @@ class TrainingService:
                     line_number += 1
                     stripped = line.strip()
 
-                    # Skip empty lines
+                    # Skip empty lines silently
                     if not stripped:
                         continue
 
@@ -478,6 +541,8 @@ class TrainingService:
                             f"[{job.job_id}] {filename}:{line_number} - Invalid JSON: {e}"
                         )
                         skipped_in_file += 1
+                        error_tracker["total"] += 1
+                        job.increment_task_error_count("tokenize")
                         continue
 
                     # Validate schema
@@ -486,30 +551,43 @@ class TrainingService:
                             f"[{job.job_id}] {filename}:{line_number} - Not a JSON object"
                         )
                         skipped_in_file += 1
+                        error_tracker["total"] += 1
+                        job.increment_task_error_count("tokenize")
                         continue
 
                     if not self._validate_training_row(data):
                         logger.warning(
-                            f"[{job.job_id}] {filename}:{line_number} - Invalid schema (missing or invalid instruction/output)"
+                            f"[{job.job_id}] {filename}:{line_number} - Invalid schema"
                         )
                         skipped_in_file += 1
+                        error_tracker["total"] += 1
+                        job.increment_task_error_count("tokenize")
                         continue
 
-                    all_data.append(data)
+                    loaded_in_file += 1
+                    yield data
+
+            # Mark file as completed with stats
+            job.set_file_status(
+                filename,
+                TaskStatus.COMPLETED,
+                rows_loaded=loaded_in_file,
+                rows_skipped=skipped_in_file,
+            )
+
+            # Update task progress based on files processed
+            job.set_task_progress("tokenize", int(((idx + 1) / total_files) * 50))
 
             if skipped_in_file > 0:
                 logger.warning(
                     f"[{job.job_id}] {filename}: Skipped {skipped_in_file} invalid rows"
                 )
-                total_skipped += skipped_in_file
 
-            job.set_task_progress("load_data", int(((idx + 1) / total_files) * 100))
+            # Small delay between files to allow WebSocket to show progression
+            if idx < total_files - 1:
+                time.sleep(0.3)
 
-        logger.info(
-            f"[{job.job_id}] Loaded {len(all_data)} training examples"
-            + (f" (skipped {total_skipped} invalid rows)" if total_skipped > 0 else "")
-        )
-        return all_data
+            logger.info(f"[{job.job_id}] {filename}: Loaded {loaded_in_file} rows")
 
     def _load_model(self, job, device, torch, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, prepare_model_for_kbit_training):
         """Load model and tokenizer."""
@@ -569,9 +647,101 @@ class TrainingService:
         output = example.get("output", "")
         return f"### Question:\n{instruction}\n\n### Answer:\n{output}"
 
-    def _tokenize_dataset(self, data, tokenizer, Dataset):
-        """Tokenize training data."""
-        texts = [self._format_training_example(ex) for ex in data]
+    def _tokenize_dataset(self, job: TrainingJob, tokenizer, Dataset):
+        """Load and tokenize training data with file status updates.
+
+        Uses disk caching to avoid keeping the entire tokenized dataset in memory.
+        """
+        data_dir = job.project_path / "data"
+        total_files = len(job.data_files)
+        all_texts = []
+
+        # Ensure cache directory exists
+        job.cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_file = job.cache_dir / "tokenized_dataset.arrow"
+        logger.info(f"[{job.job_id}] Using disk cache: {job.cache_dir}")
+
+        # Small delay to ensure WebSocket can show initial PENDING states
+        time.sleep(0.5)
+
+        # Process each file with status updates
+        for idx, filename in enumerate(job.data_files):
+            file_path = data_dir / filename
+
+            # Mark file as in progress
+            job.set_file_status(filename, TaskStatus.IN_PROGRESS)
+
+            if not file_path.exists():
+                job.set_file_status(filename, TaskStatus.FAILED)
+                job.increment_task_error_count("tokenize")
+                logger.error(f"[{job.job_id}] File not found: {filename}")
+                continue
+
+            logger.info(f"[{job.job_id}] Processing: {filename}")
+            skipped_in_file = 0
+            loaded_in_file = 0
+            line_number = 0
+
+            with open(file_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line_number += 1
+                    stripped = line.strip()
+
+                    # Skip empty lines silently
+                    if not stripped:
+                        continue
+
+                    # Try to parse JSON
+                    try:
+                        data = json.loads(stripped)
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"[{job.job_id}] {filename}:{line_number} - Invalid JSON: {e}")
+                        skipped_in_file += 1
+                        job.increment_task_error_count("tokenize")
+                        continue
+
+                    # Validate schema
+                    if not isinstance(data, dict):
+                        logger.warning(f"[{job.job_id}] {filename}:{line_number} - Not a JSON object")
+                        skipped_in_file += 1
+                        job.increment_task_error_count("tokenize")
+                        continue
+
+                    if not self._validate_training_row(data):
+                        logger.warning(f"[{job.job_id}] {filename}:{line_number} - Invalid schema")
+                        skipped_in_file += 1
+                        job.increment_task_error_count("tokenize")
+                        continue
+
+                    # Format and add to list
+                    all_texts.append(self._format_training_example(data))
+                    loaded_in_file += 1
+
+            # Mark file as completed
+            job.set_file_status(
+                filename,
+                TaskStatus.COMPLETED,
+                rows_loaded=loaded_in_file,
+                rows_skipped=skipped_in_file,
+            )
+
+            # Update progress (0-50% for file loading)
+            job.set_task_progress("tokenize", int(((idx + 1) / total_files) * 50))
+
+            if skipped_in_file > 0:
+                logger.warning(f"[{job.job_id}] {filename}: Skipped {skipped_in_file} invalid rows")
+
+            logger.info(f"[{job.job_id}] {filename}: Loaded {loaded_in_file} rows")
+
+            # Delay between files to allow WebSocket to show progression
+            if idx < total_files - 1:
+                time.sleep(0.4)
+
+        logger.info(f"[{job.job_id}] Total: {len(all_texts)} training examples")
+
+        # Now tokenize (50-100% progress)
+        # Using disk cache to avoid keeping tokenized data in memory
+        job.set_task_progress("tokenize", 60)
 
         def tokenize_function(examples):
             return tokenizer(
@@ -581,8 +751,23 @@ class TrainingService:
                 padding="max_length",
             )
 
-        dataset = Dataset.from_dict({"text": texts})
-        return dataset.map(tokenize_function, batched=True, remove_columns=["text"])
+        dataset = Dataset.from_dict({"text": all_texts})
+        # Clear all_texts to free memory before tokenization
+        del all_texts
+        job.set_task_progress("tokenize", 70)
+
+        # Tokenize and cache to disk (keep_in_memory=False stores result on disk)
+        result = dataset.map(
+            tokenize_function,
+            batched=True,
+            remove_columns=["text"],
+            cache_file_name=str(cache_file),
+            keep_in_memory=False,
+        )
+        job.set_task_progress("tokenize", 100)
+
+        logger.info(f"[{job.job_id}] Tokenized dataset cached to disk: {cache_file}")
+        return result
 
     def _train(self, job, model, tokenizer, dataset, device, torch, TrainingArguments, Trainer, DataCollatorForLanguageModeling, TrainerCallback):
         """Run the training loop."""
@@ -812,9 +997,27 @@ SYSTEM You are a helpful assistant.
 
     def _handle_cancellation(self, job: TrainingJob) -> None:
         """Handle job cancellation."""
+        # Mark all in-progress tasks as skipped (cancelled)
+        # Mark all pending tasks as skipped
+        for task_id in TASK_IDS:
+            task = job.tasks.get(task_id)
+            if task and task.status in [TaskStatus.IN_PROGRESS, TaskStatus.PENDING]:
+                job.skip_task(task_id)
+                logger.info(f"[{job.job_id}] Task {task_id} skipped due to cancellation")
+
+        # Mark all pending/in-progress files as skipped
+        for filename in job.data_files:
+            file_status = job.file_statuses.get(filename)
+            if file_status and file_status.status in [TaskStatus.IN_PROGRESS, TaskStatus.PENDING]:
+                job.set_file_status(filename, TaskStatus.SKIPPED)
+                logger.info(f"[{job.job_id}] File {filename} skipped due to cancellation")
+
         job.status = TrainingStatus.CANCELLED
         job.error_code = ErrorCode.TRAINING_CANCELLED
         logger.info(f"[{job.job_id}] Training cancelled")
+
+        # Clean up cache after cancellation
+        job.cleanup_cache()
 
 
 # Global instance

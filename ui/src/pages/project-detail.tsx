@@ -86,7 +86,7 @@ import { useModels } from "@/hooks/useModels";
 import { useProject } from "@/hooks/useProject";
 import { useTraining } from "@/hooks/useTraining";
 import { updateProject } from "@/lib/projects";
-import type { Model, TaskStatus, TrainingStatus, TrainingTask } from "@/types";
+import type { DataFileStatus, Model, TaskStatus, TrainingStatus, TrainingTask } from "@/types";
 
 function TaskStatusIcon({ status }: { status: TaskStatus }) {
   switch (status) {
@@ -103,26 +103,38 @@ function TaskStatusIcon({ status }: { status: TaskStatus }) {
   }
 }
 
-function TaskItem({ task, t }: { task: TrainingTask; t: (key: string) => string }) {
+function TaskItem({ task, t }: { task: TrainingTask; t: (key: string, data?: Record<string, unknown>) => string }) {
   const showProgress = task.status === "in_progress" && task.progress > 0;
+  const hasWarnings = task.error_count > 0;
 
   return (
     <div className="flex items-center gap-3 py-2">
       <TaskStatusIcon status={task.status} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
-          <span
-            className={`text-sm ${task.status === "pending"
-              ? "text-muted-foreground"
-              : task.status === "failed"
-                ? "text-red-500"
-                : task.status === "skipped"
-                  ? "text-muted-foreground"
-                  : ""
-              }`}
-          >
-            {t(`training.tasks.${task.task_id}`)}
-          </span>
+          <div className="flex items-center gap-2">
+            <span
+              className={`text-sm ${task.status === "pending"
+                ? "text-muted-foreground"
+                : task.status === "failed"
+                  ? "text-red-500"
+                  : task.status === "skipped"
+                    ? "text-muted-foreground"
+                    : ""
+                }`}
+            >
+              {t(`training.tasks.${task.task_id}`)}
+            </span>
+            {hasWarnings && (
+              <span
+                className="flex items-center gap-1 text-amber-500"
+                title={t("training.taskWarnings", { count: task.error_count })}
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                <span className="text-xs">{task.error_count}</span>
+              </span>
+            )}
+          </div>
           {showProgress && (
             <span className="text-xs text-muted-foreground">{task.progress}%</span>
           )}
@@ -133,6 +145,25 @@ function TaskItem({ task, t }: { task: TrainingTask; t: (key: string) => string 
       </div>
     </div>
   );
+}
+
+function FileStatusIcon({ status }: { status: TaskStatus | undefined }) {
+  if (!status) return null;
+
+  switch (status) {
+    case "completed":
+      return <Check className="h-4 w-4 text-green-500 shrink-0" />;
+    case "in_progress":
+      return <Loader2 className="h-4 w-4 text-blue-500 animate-spin shrink-0" />;
+    case "failed":
+      return <XCircle className="h-4 w-4 text-red-500 shrink-0" />;
+    case "skipped":
+      return <SkipForward className="h-4 w-4 text-muted-foreground shrink-0" />;
+    case "pending":
+      return <Circle className="h-4 w-4 text-muted-foreground shrink-0" />;
+    default:
+      return null;
+  }
 }
 
 export function ProjectDetailPage() {
@@ -153,6 +184,7 @@ export function ProjectDetailPage() {
     progress: trainingProgress,
     isStarting,
     tasks,
+    fileStatuses: trainingFileStatuses,
     error: trainingError,
     start: startTraining,
     cancel: cancelTraining,
@@ -210,6 +242,15 @@ export function ProjectDetailPage() {
 
     return `${modelName}-${slug}`;
   }, [effectiveSelectedModel, slug]);
+
+  // Create a map from filename to training file status
+  const fileStatusMap = useMemo(() => {
+    const map = new Map<string, DataFileStatus>();
+    for (const fs of trainingFileStatuses) {
+      map.set(fs.filename, fs);
+    }
+    return map;
+  }, [trainingFileStatuses]);
 
   // Handle model selection change and persist to project
   const handleModelChange = useCallback(
@@ -595,29 +636,48 @@ export function ProjectDetailPage() {
                         {files.map((file) => {
                           const errorCount = fileErrorCounts[file.filename];
                           const hasErrors = errorCount !== undefined && errorCount > 0;
+                          const fileStatus = fileStatusMap.get(file.filename);
 
                           return (
                             <div
                               key={file.filename}
                               className="flex items-center justify-between p-3 rounded-lg border bg-card"
                             >
-                              <button
-                                type="button"
-                                className="flex items-center gap-3 min-w-0 flex-1 text-left hover:opacity-70 transition-opacity cursor-pointer"
-                                onClick={() => setPreviewFile(file.filename)}
-                              >
-                                <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                                <div className="min-w-0">
-                                  <p className="text-sm font-medium truncate">
-                                    {file.filename}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {file.size_formatted}
-                                  </p>
-                                </div>
-                              </button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="flex items-center gap-3 min-w-0 flex-1 text-left hover:opacity-70 transition-opacity cursor-pointer"
+                                    onClick={() => setPreviewFile(file.filename)}
+                                  >
+                                    {/* Show status icon during training, otherwise file icon */}
+                                    {fileStatus ? (
+                                      <FileStatusIcon status={fileStatus.status} />
+                                    ) : (
+                                      <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                                    )}
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-medium truncate">
+                                        {file.filename}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {file.size_formatted}
+                                      </p>
+                                    </div>
+                                  </button>
+                                </TooltipTrigger>
+                                {fileStatus && (
+                                  <TooltipContent>
+                                    {t(`dataFiles.fileStatus.${fileStatus.status}`, {
+                                      loaded: fileStatus.rows_loaded,
+                                      skipped: fileStatus.rows_skipped,
+                                    })}
+                                  </TooltipContent>
+                                )}
+                              </Tooltip>
                               <div className="flex items-center gap-1 shrink-0">
-                                {hasErrors && (
+                                {/* Validation error warning (only when not in training) */}
+                                {hasErrors && !fileStatus && (
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <div className="p-2">

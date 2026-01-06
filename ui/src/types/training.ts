@@ -32,7 +32,6 @@ export type TaskStatus = "pending" | "in_progress" | "completed" | "failed" | "s
 
 export type TaskId =
   | "detect_device"
-  | "load_data"
   | "import_libraries"
   | "load_model"
   | "setup_lora"
@@ -46,6 +45,14 @@ export interface TrainingTask {
   task_id: TaskId;
   status: TaskStatus;
   progress: number;
+  error_count: number;
+}
+
+export interface DataFileStatus {
+  filename: string;
+  status: TaskStatus;
+  rows_loaded: number;
+  rows_skipped: number;
 }
 
 export interface TrainingProgress {
@@ -56,6 +63,7 @@ export interface TrainingProgress {
   device: DeviceType | null;
   error_code: string | null;
   tasks: TrainingTask[];
+  file_statuses: DataFileStatus[];
 }
 
 export interface TrainingLogEntry {
