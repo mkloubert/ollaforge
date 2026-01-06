@@ -80,6 +80,8 @@ export interface TranslationSchema {
       backToProjects: string;
       selectModel: string;
       selectModelPlaceholder: string;
+      targetName: string;
+      targetNamePlaceholder: string;
       configuration: string;
       status: string;
     };
@@ -98,6 +100,7 @@ export interface TranslationSchema {
       cancelButton: string;
       noModel: string;
       noDataFiles: string;
+      readyDescription: string;
       status: {
         idle: string;
         starting: string;

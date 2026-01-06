@@ -83,6 +83,8 @@ const de: TranslationSchema = {
       backToProjects: "Zurück zu Projekten",
       selectModel: "Basis-Modell",
       selectModelPlaceholder: "Modell auswählen...",
+      targetName: "Ziel-Modellname",
+      targetNamePlaceholder: "Eigenen Namen eingeben...",
       configuration: "Konfiguration",
       status: "Status",
     },
@@ -101,6 +103,7 @@ const de: TranslationSchema = {
       cancelButton: "Training abbrechen",
       noModel: "Bitte wähle zuerst ein Modell aus",
       noDataFiles: "Bitte füge mindestens eine Datei hinzu",
+      readyDescription: "Alles ist eingerichtet. Klicke auf den Button oben, um dein Modell zu erstellen.",
       status: {
         idle: "Bereit",
         starting: "Wird gestartet...",

@@ -111,11 +111,21 @@ async def get_all_projects() -> list[ProjectInfo]:
         if description:
             description = description.strip() or None
 
+        model = project_data.get("model")
+        if model:
+            model = model.strip() or None
+
+        target_name = project_data.get("targetName")
+        if target_name:
+            target_name = target_name.strip() or None
+
         projects.append(
             ProjectInfo(
                 slug=entry.name,
                 name=project_data["name"].strip(),
                 description=description,
+                model=model,
+                target_name=target_name,
                 path=str(entry.resolve()),
             )
         )
@@ -260,11 +270,25 @@ async def update_project(slug: str, request: UpdateProjectRequest) -> UpdateProj
     if description:
         description = description.strip() or None
 
+    # Process model
+    model = request.model
+    if model:
+        model = model.strip() or None
+
+    # Process target_name
+    target_name = request.target_name
+    if target_name:
+        target_name = target_name.strip() or None
+
     # Update project.json
     try:
         project_data: dict[str, str | None] = {"name": name}
         if description:
             project_data["description"] = description
+        if model:
+            project_data["model"] = model
+        if target_name:
+            project_data["targetName"] = target_name
 
         project_file = project_dir / "project.json"
 
@@ -277,7 +301,7 @@ async def update_project(slug: str, request: UpdateProjectRequest) -> UpdateProj
             detail={"error_code": ErrorCode.PROJECT_UPDATE_FAILED},
         )
 
-    return UpdateProjectResponse(slug=slug, name=name, description=description)
+    return UpdateProjectResponse(slug=slug, name=name, description=description, model=model, target_name=target_name)
 
 
 @router.delete(

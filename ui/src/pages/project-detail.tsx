@@ -26,6 +26,7 @@ import {
   Loader2,
   Play,
   SkipForward,
+  Sparkles,
   Square,
   Trash2,
   Upload,
@@ -60,6 +61,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -75,7 +77,8 @@ import { useDataFiles } from "@/hooks/useDataFiles";
 import { useModels } from "@/hooks/useModels";
 import { useProject } from "@/hooks/useProject";
 import { useTraining } from "@/hooks/useTraining";
-import type { TaskStatus, TrainingStatus, TrainingTask } from "@/types";
+import { updateProject } from "@/lib/projects";
+import type { Model, TaskStatus, TrainingStatus, TrainingTask } from "@/types";
 
 function TaskStatusIcon({ status }: { status: TaskStatus }) {
   switch (status) {
@@ -102,12 +105,12 @@ function TaskItem({ task, t }: { task: TrainingTask; t: (key: string) => string 
         <div className="flex items-center justify-between">
           <span
             className={`text-sm ${task.status === "pending"
-                ? "text-muted-foreground"
-                : task.status === "failed"
-                  ? "text-red-500"
-                  : task.status === "skipped"
-                    ? "text-muted-foreground"
-                    : ""
+              ? "text-muted-foreground"
+              : task.status === "failed"
+                ? "text-red-500"
+                : task.status === "skipped"
+                  ? "text-muted-foreground"
+                  : ""
               }`}
           >
             {t(`training.tasks.${task.task_id}`)}
@@ -148,16 +151,99 @@ export function ProjectDetailPage() {
     clearError,
   } = useTraining(slug);
 
-  const [selectedModel, setSelectedModel] = useState<string>("");
+  // Local overrides for model and target name (null = use project value)
+  const [selectedModelOverride, setSelectedModelOverride] = useState<string | null>(null);
+  const [targetNameOverride, setTargetNameOverride] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-select model if only one exists and user hasn't made a selection
+  // Combined models list: API models + saved project model (if not already in list)
+  const combinedModels = useMemo((): Model[] => {
+    const savedModel = project?.model;
+    if (!savedModel || savedModel.trim() === "") {
+      return models;
+    }
+
+    // Check if saved model already exists in the list
+    const exists = models.some((m) => m.name === savedModel);
+    if (exists) {
+      return models;
+    }
+
+    // Add saved model to the beginning of the list
+    return [{ name: savedModel }, ...models];
+  }, [models, project]);
+
+  // Effective selected model: local override > project value > auto-select single model
   const effectiveSelectedModel = useMemo(() => {
-    if (selectedModel !== "") return selectedModel;
-    if (models.length === 1) return models[0].name;
+    if (selectedModelOverride !== null) return selectedModelOverride;
+    if (project?.model && project.model.trim() !== "") return project.model;
+    if (combinedModels.length === 1) return combinedModels[0].name;
     return "";
-  }, [selectedModel, models]);
+  }, [selectedModelOverride, project, combinedModels]);
+
+  // Effective target name: local override > project value
+  const effectiveTargetName = useMemo(() => {
+    if (targetNameOverride !== null) return targetNameOverride;
+    if (project?.target_name && project.target_name.trim() !== "") return project.target_name;
+    return "";
+  }, [targetNameOverride, project]);
+
+  // Calculate default target name placeholder: <base-model-without-owner>-<project-slug>
+  const defaultTargetName = useMemo(() => {
+    if (!effectiveSelectedModel || !slug) return "";
+
+    // Extract model name without owner (e.g., "unsloth/llama-3-8b" -> "llama-3-8b")
+    const modelName = effectiveSelectedModel.includes("/")
+      ? effectiveSelectedModel.split("/").pop() || effectiveSelectedModel
+      : effectiveSelectedModel;
+
+    return `${modelName}-${slug}`;
+  }, [effectiveSelectedModel, slug]);
+
+  // Handle model selection change and persist to project
+  const handleModelChange = useCallback(
+    async (value: string) => {
+      setSelectedModelOverride(value);
+
+      // Persist model selection to project
+      if (project && slug) {
+        try {
+          await updateProject(slug, {
+            name: project.name,
+            description: project.description,
+            model: value,
+            target_name: effectiveTargetName || null,
+          });
+        } catch {
+          // Silent fail - model is still selected locally
+        }
+      }
+    },
+    [project, slug, effectiveTargetName]
+  );
+
+  // Handle target name change and persist to project
+  const handleTargetNameChange = useCallback(
+    async (value: string) => {
+      setTargetNameOverride(value);
+
+      // Persist target name to project
+      if (project && slug) {
+        try {
+          await updateProject(slug, {
+            name: project.name,
+            description: project.description,
+            model: effectiveSelectedModel || null,
+            target_name: value || null,
+          });
+        } catch {
+          // Silent fail - target name is still set locally
+        }
+      }
+    },
+    [project, slug, effectiveSelectedModel]
+  );
 
   const ACTIVE_STATUSES: TrainingStatus[] = [
     "starting",
@@ -364,7 +450,7 @@ export function ProjectDetailPage() {
         </Card>
 
         {/* Main Content - Left/Right Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(380px,480px)_1fr] gap-6">
           {/* Left Side - Configuration */}
           <div className="flex flex-col gap-4">
             <Card>
@@ -381,7 +467,7 @@ export function ProjectDetailPage() {
                   </Label>
                   <Select
                     value={effectiveSelectedModel}
-                    onValueChange={setSelectedModel}
+                    onValueChange={handleModelChange}
                     disabled={modelsLoading || isTrainingActive}
                   >
                     <SelectTrigger id="model-select" className="w-full">
@@ -394,13 +480,27 @@ export function ProjectDetailPage() {
                       />
                     </SelectTrigger>
                     <SelectContent>
-                      {models.map((model) => (
+                      {combinedModels.map((model) => (
                         <SelectItem key={model.name} value={model.name}>
                           {model.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                {/* Target Model Name */}
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="target-name-input">
+                    {t("project.targetName")}
+                  </Label>
+                  <Input
+                    id="target-name-input"
+                    value={effectiveTargetName}
+                    onChange={(e) => handleTargetNameChange(e.target.value)}
+                    placeholder={defaultTargetName || t("project.targetNamePlaceholder")}
+                    disabled={isTrainingActive}
+                  />
                 </div>
 
                 <Separator />
@@ -531,68 +631,77 @@ export function ProjectDetailPage() {
                 </div>
               </CardHeader>
               <CardContent className="flex flex-col gap-4 flex-1">
-                {/* Status Display */}
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">
-                      {t("training.status." + trainingStatus)}
-                    </span>
-                    {trainingProgress?.device && (
-                      <span className="text-xs text-muted-foreground">
-                        {t("training.device")}: {trainingProgress.device.toUpperCase()}
+                {/* Idle State - Ready to create */}
+                {trainingStatus === "idle" && tasks.length === 0 && (
+                  <div className="flex-1 flex flex-col items-center justify-center py-8 text-center">
+                    <div className="rounded-full bg-primary/10 p-4 mb-4">
+                      <Sparkles className="h-8 w-8 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-medium mb-2">
+                      {t("training.status.idle")}
+                    </h3>
+                    <p className="text-sm text-muted-foreground max-w-[280px]">
+                      {!effectiveSelectedModel
+                        ? t("training.noModel")
+                        : files.length === 0
+                          ? t("training.noDataFiles")
+                          : t("training.readyDescription")}
+                    </p>
+                  </div>
+                )}
+
+                {/* Active Training Status */}
+                {(isTrainingActive || tasks.length > 0) && trainingStatus !== "completed" && trainingStatus !== "cancelled" && (
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">
+                        {t("training.status." + trainingStatus)}
                       </span>
+                      {trainingProgress?.device && (
+                        <span className="text-xs text-muted-foreground">
+                          {t("training.device")}: {trainingProgress.device.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Overall Progress Bar */}
+                    {isTrainingActive && trainingProgress && trainingProgress.total_steps > 0 && (
+                      <div className="flex flex-col gap-2">
+                        <Progress value={(trainingProgress.current_step / trainingProgress.total_steps) * 100} />
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>
+                            {t("training.step", {
+                              current: trainingProgress.current_step,
+                              total: trainingProgress.total_steps,
+                            })}
+                          </span>
+                          <span>{Math.round((trainingProgress.current_step / trainingProgress.total_steps) * 100)}%</span>
+                        </div>
+                      </div>
                     )}
                   </div>
+                )}
 
-                  {/* Overall Progress Bar */}
-                  {isTrainingActive && trainingProgress && trainingProgress.total_steps > 0 && (
-                    <div className="flex flex-col gap-2">
-                      <Progress value={(trainingProgress.current_step / trainingProgress.total_steps) * 100} />
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>
-                          {t("training.step", {
-                            current: trainingProgress.current_step,
-                            total: trainingProgress.total_steps,
-                          })}
-                        </span>
-                        <span>{Math.round((trainingProgress.current_step / trainingProgress.total_steps) * 100)}%</span>
-                      </div>
-                    </div>
-                  )}
+                {/* Success Message */}
+                {trainingStatus === "completed" && (
+                  <Alert className="border-green-500/50 bg-green-500/10">
+                    <Check className="h-4 w-4 text-green-500" />
+                    <AlertTitle className="text-green-500">{t("training.completed")}</AlertTitle>
+                    <AlertDescription className="text-green-600/80">
+                      {t("training.completedDescription")}
+                    </AlertDescription>
+                  </Alert>
+                )}
 
-                  {/* Success Message */}
-                  {trainingStatus === "completed" && (
-                    <Alert className="border-green-500/50 bg-green-500/10">
-                      <Check className="h-4 w-4 text-green-500" />
-                      <AlertTitle className="text-green-500">{t("training.completed")}</AlertTitle>
-                      <AlertDescription className="text-green-600/80">
-                        {t("training.completedDescription")}
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
-                  {/* Cancelled Message */}
-                  {trainingStatus === "cancelled" && (
-                    <Alert>
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        {t("training.cancelled")}
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
-                  {/* Validation Messages */}
-                  {!isTrainingActive && trainingStatus === "idle" && !effectiveSelectedModel && (
-                    <p className="text-sm text-muted-foreground">
-                      {t("training.noModel")}
-                    </p>
-                  )}
-                  {!isTrainingActive && trainingStatus === "idle" && effectiveSelectedModel && files.length === 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      {t("training.noDataFiles")}
-                    </p>
-                  )}
-                </div>
+                {/* Cancelled Message */}
+                {trainingStatus === "cancelled" && (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      {t("training.cancelled")}
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 {/* Task List */}
                 {tasks.length > 0 && (

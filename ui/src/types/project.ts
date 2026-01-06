@@ -18,6 +18,8 @@ export interface Project {
   slug: string;
   name: string;
   description?: string | null;
+  model?: string | null;
+  target_name?: string | null;
   path: string;
 }
 
@@ -35,12 +37,16 @@ export interface CreateProjectResponse {
 export interface UpdateProjectRequest {
   name: string;
   description?: string | null;
+  model?: string | null;
+  target_name?: string | null;
 }
 
 export interface UpdateProjectResponse {
   slug: string;
   name: string;
   description?: string | null;
+  model?: string | null;
+  target_name?: string | null;
 }
 
 export interface ApiErrorResponse {

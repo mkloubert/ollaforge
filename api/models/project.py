@@ -25,6 +25,12 @@ class ProjectInfo(BaseModel):
     description: str | None = Field(
         None, description="Optional description of the project"
     )
+    model: str | None = Field(
+        None, description="The selected base model for training"
+    )
+    target_name: str | None = Field(
+        None, description="The custom name for the final trained model"
+    )
     path: str = Field(..., description="Full path to the project directory")
 
 
@@ -68,6 +74,16 @@ class UpdateProjectRequest(BaseModel):
         max_length=500,
         description="Optional description for the project",
     )
+    model: str | None = Field(
+        None,
+        max_length=200,
+        description="The selected base model for training",
+    )
+    target_name: str | None = Field(
+        None,
+        max_length=200,
+        description="The custom name for the final trained model",
+    )
 
 
 class UpdateProjectResponse(BaseModel):
@@ -77,6 +93,12 @@ class UpdateProjectResponse(BaseModel):
     name: str = Field(..., description="The display name of the project")
     description: str | None = Field(
         None, description="Optional description of the project"
+    )
+    model: str | None = Field(
+        None, description="The selected base model for training"
+    )
+    target_name: str | None = Field(
+        None, description="The custom name for the final trained model"
     )
 
 
