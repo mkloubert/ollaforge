@@ -282,6 +282,7 @@ set "NODE_MAJOR=%NODE_VER_RAW:v=%"
 
 call :log_info "Found Node.js %NODE_VER_RAW% (%NODE_CMD%)"
 
+if "%NODE_MAJOR%"=="" exit /b 1
 if %NODE_MAJOR% GEQ %REQUIRED_NODE_MAJOR% (
     exit /b 0
 ) else (
@@ -414,6 +415,8 @@ for /f "tokens=1,2 delims=." %%a in ("%PY_VERSION%") do (
 
 call :log_info "Found Python %PY_VERSION% (%PYTHON_CMD%)"
 
+if "%PY_MAJOR%"=="" exit /b 1
+if "%PY_MINOR%"=="" exit /b 1
 if %PY_MAJOR% GTR %REQUIRED_PYTHON_MAJOR% (
     exit /b 0
 ) else if %PY_MAJOR% EQU %REQUIRED_PYTHON_MAJOR% (
