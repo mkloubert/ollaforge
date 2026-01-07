@@ -15,6 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import asyncio
+import json
 import logging
 import subprocess
 import sys
@@ -24,6 +25,11 @@ from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, st
 
 from config import get_config
 from error_codes import ErrorCode
+from models.project import (
+    ProjectLoraConfig,
+    QuantizationConfig,
+    TrainingConfig,
+)
 
 logger = logging.getLogger(__name__)
 from models.training import (
@@ -36,6 +42,47 @@ from models.training import (
 from services.training_service import training_manager
 
 router = APIRouter(prefix="/api/projects", tags=["training"])
+
+
+def load_project_configs(project_dir: Path) -> tuple[TrainingConfig | None, ProjectLoraConfig | None, QuantizationConfig | None]:
+    """Load training configurations from project.json."""
+    project_file = project_dir / "project.json"
+
+    if not project_file.exists():
+        return None, None, None
+
+    try:
+        with open(project_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return None, None, None
+
+    training_config = None
+    lora_config = None
+    quantization_config = None
+
+    # Parse training config
+    if "trainingConfig" in data and isinstance(data["trainingConfig"], dict):
+        try:
+            training_config = TrainingConfig(**data["trainingConfig"])
+        except (TypeError, ValueError):
+            pass
+
+    # Parse LoRA config
+    if "loraConfig" in data and isinstance(data["loraConfig"], dict):
+        try:
+            lora_config = ProjectLoraConfig(**data["loraConfig"])
+        except (TypeError, ValueError):
+            pass
+
+    # Parse quantization config
+    if "quantizationConfig" in data and isinstance(data["quantizationConfig"], dict):
+        try:
+            quantization_config = QuantizationConfig(**data["quantizationConfig"])
+        except (TypeError, ValueError):
+            pass
+
+    return training_config, lora_config, quantization_config
 
 
 def validate_project_exists(slug: str) -> Path:
@@ -239,6 +286,15 @@ async def start_training(slug: str, request: StartTrainingRequest) -> StartTrain
     job_id = generate_job_id()
     logger.info(f"Starting training job {job_id} for {slug}")
 
+    # Load project configurations
+    training_config, lora_config, quantization_config = load_project_configs(project_dir)
+    if training_config:
+        logger.info(f"Loaded training config for {slug}")
+    if lora_config:
+        logger.info(f"Loaded LoRA config for {slug}")
+    if quantization_config:
+        logger.info(f"Loaded quantization config for {slug}")
+
     # Start training in background - returns immediately
     job = training_manager.start_training(
         job_id=job_id,
@@ -247,6 +303,9 @@ async def start_training(slug: str, request: StartTrainingRequest) -> StartTrain
         model_name=request.model_name,
         data_files=request.data_files,
         quantization=request.quantization,
+        training_config=training_config,
+        lora_config=lora_config,
+        quantization_config=quantization_config,
     )
 
     # Return immediately with job ID - client should connect to WebSocket for updates

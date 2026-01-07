@@ -29,6 +29,9 @@ from models.project import (
     CreateProjectResponse,
     ErrorResponse,
     ProjectInfo,
+    ProjectLoraConfig,
+    QuantizationConfig,
+    TrainingConfig,
     UpdateProjectRequest,
     UpdateProjectResponse,
 )
@@ -86,6 +89,39 @@ def read_project_json(project_dir: Path) -> dict | None:
         return None
 
 
+def parse_training_config(data: dict) -> TrainingConfig | None:
+    """Parse training configuration from project.json data."""
+    config_data = data.get("trainingConfig")
+    if not config_data or not isinstance(config_data, dict):
+        return None
+    try:
+        return TrainingConfig(**config_data)
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_lora_config(data: dict) -> ProjectLoraConfig | None:
+    """Parse LoRA configuration from project.json data."""
+    config_data = data.get("loraConfig")
+    if not config_data or not isinstance(config_data, dict):
+        return None
+    try:
+        return ProjectLoraConfig(**config_data)
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_quantization_config(data: dict) -> QuantizationConfig | None:
+    """Parse quantization configuration from project.json data."""
+    config_data = data.get("quantizationConfig")
+    if not config_data or not isinstance(config_data, dict):
+        return None
+    try:
+        return QuantizationConfig(**config_data)
+    except (TypeError, ValueError):
+        return None
+
+
 async def get_all_projects() -> list[ProjectInfo]:
     """
     Scan the projects directory and return all valid projects.
@@ -127,6 +163,9 @@ async def get_all_projects() -> list[ProjectInfo]:
                 model=model,
                 target_name=target_name,
                 path=str(entry.resolve()),
+                training_config=parse_training_config(project_data),
+                lora_config=parse_lora_config(project_data),
+                quantization_config=parse_quantization_config(project_data),
             )
         )
 
@@ -280,15 +319,36 @@ async def update_project(slug: str, request: UpdateProjectRequest) -> UpdateProj
     if target_name:
         target_name = target_name.strip() or None
 
+    # Process config objects
+    training_config = request.training_config
+    lora_config = request.lora_config
+    quantization_config = request.quantization_config
+
     # Update project.json
     try:
-        project_data: dict[str, str | None] = {"name": name}
+        project_data: dict = {"name": name}
         if description:
             project_data["description"] = description
         if model:
             project_data["model"] = model
         if target_name:
             project_data["targetName"] = target_name
+
+        # Add config objects if they have any non-None values
+        if training_config:
+            config_dict = training_config.model_dump(exclude_none=True)
+            if config_dict:
+                project_data["trainingConfig"] = config_dict
+
+        if lora_config:
+            config_dict = lora_config.model_dump(exclude_none=True)
+            if config_dict:
+                project_data["loraConfig"] = config_dict
+
+        if quantization_config:
+            config_dict = quantization_config.model_dump(exclude_none=True)
+            if config_dict:
+                project_data["quantizationConfig"] = config_dict
 
         project_file = project_dir / "project.json"
 
@@ -301,7 +361,16 @@ async def update_project(slug: str, request: UpdateProjectRequest) -> UpdateProj
             detail={"error_code": ErrorCode.PROJECT_UPDATE_FAILED},
         )
 
-    return UpdateProjectResponse(slug=slug, name=name, description=description, model=model, target_name=target_name)
+    return UpdateProjectResponse(
+        slug=slug,
+        name=name,
+        description=description,
+        model=model,
+        target_name=target_name,
+        training_config=training_config,
+        lora_config=lora_config,
+        quantization_config=quantization_config,
+    )
 
 
 @router.delete(

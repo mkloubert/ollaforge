@@ -14,6 +14,31 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+export interface TrainingConfig {
+  num_train_epochs?: number | null;
+  per_device_train_batch_size?: number | null;
+  gradient_accumulation_steps?: number | null;
+  learning_rate?: number | null;
+  warmup_ratio?: number | null;
+  max_length?: number | null;
+  fp16?: boolean | null;
+  optim?: string | null;
+}
+
+export interface LoraConfig {
+  r?: number | null;
+  lora_alpha?: number | null;
+  lora_dropout?: number | null;
+  target_modules?: string[] | null;
+}
+
+export interface QuantizationConfig {
+  load_in_4bit?: boolean | null;
+  bnb_4bit_quant_type?: string | null;
+  bnb_4bit_use_double_quant?: boolean | null;
+  output_quantization?: string | null;
+}
+
 export interface Project {
   slug: string;
   name: string;
@@ -21,6 +46,9 @@ export interface Project {
   model?: string | null;
   target_name?: string | null;
   path: string;
+  training_config?: TrainingConfig | null;
+  lora_config?: LoraConfig | null;
+  quantization_config?: QuantizationConfig | null;
 }
 
 export interface CreateProjectRequest {
@@ -39,6 +67,9 @@ export interface UpdateProjectRequest {
   description?: string | null;
   model?: string | null;
   target_name?: string | null;
+  training_config?: TrainingConfig | null;
+  lora_config?: LoraConfig | null;
+  quantization_config?: QuantizationConfig | null;
 }
 
 export interface UpdateProjectResponse {
@@ -47,6 +78,9 @@ export interface UpdateProjectResponse {
   description?: string | null;
   model?: string | null;
   target_name?: string | null;
+  training_config?: TrainingConfig | null;
+  lora_config?: LoraConfig | null;
+  quantization_config?: QuantizationConfig | null;
 }
 
 export interface ApiErrorResponse {

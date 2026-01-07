@@ -6,7 +6,8 @@ A web application that simplifies training LLMs with your own data for use in Ol
 
 - **Project Management**: Create, edit, and delete training projects
 - **Training Data**: Upload JSONL files with instruction/output pairs
-- **Model Training**: Fine-tune LLMs using LoRA with automatic GGUF conversion
+- **Model Training**: Fine-tune LLMs using QLoRA with automatic GGUF conversion
+- **Advanced Configuration**: Customize training, LoRA, and quantization parameters
 - **Ollama Integration**: Create and run trained models directly in Ollama
 - **Hugging Face Integration**: Login to access gated models
 - **Multi-language Support**: English and German UI
@@ -85,6 +86,41 @@ Upload JSONL files where each line is a JSON object:
 {"instruction": "What is the capital of France?", "output": "The capital of France is Paris."}
 {"instruction": "Translate 'Hello' to German", "output": "Hallo"}
 ```
+
+### Advanced Configuration
+
+The Advanced tab in the project settings allows customization of training parameters:
+
+#### Training Parameters
+
+| Parameter             | Description                       | Default (GPU)    | Default (CPU) |
+| --------------------- | --------------------------------- | ---------------- | ------------- |
+| Epochs                | Number of training passes         | 3                | 3             |
+| Batch Size            | Samples per training step         | 4                | 1             |
+| Gradient Accumulation | Steps to accumulate gradients     | 4                | 4             |
+| Learning Rate         | Step size for weight updates      | 2e-4             | 3e-4          |
+| Warmup Ratio          | Fraction for learning rate warmup | 0.1              | 0.03          |
+| Max Token Length      | Maximum sequence length           | 512              | 512           |
+| FP16                  | Half precision training           | true             | false         |
+| Optimizer             | Weight update algorithm           | paged_adamw_8bit | adamw_torch   |
+
+#### LoRA Parameters
+
+| Parameter      | Description                     | Default                                |
+| -------------- | ------------------------------- | -------------------------------------- |
+| Rank (r)       | Dimension of low-rank matrices  | 32                                     |
+| Alpha          | Scaling factor for LoRA weights | 64                                     |
+| Dropout        | Dropout probability             | 0.05                                   |
+| Target Modules | Model layers to apply LoRA      | q, k, v, o, gate, up, down projections |
+
+#### Quantization Parameters (GPU only)
+
+| Parameter           | Description                     | Default |
+| ------------------- | ------------------------------- | ------- |
+| Load in 4-bit       | Use 4-bit precision for loading | true    |
+| Quantization Type   | 4-bit quantization algorithm    | NF4     |
+| Double Quantization | Apply secondary quantization    | true    |
+| Output Quantization | Format for final GGUF model     | Q8_0    |
 
 ## Default Ports
 
@@ -173,15 +209,20 @@ python run.py --no-open --ui-port 8080 --api-port 8081
 
 | Variable            | Description                 | Default                               |
 | ------------------- | --------------------------- | ------------------------------------- |
-| OLLAFORGE_UI_PORT   | Port for the UI server      | 5979                                  |
 | OLLAFORGE_API_PORT  | Port for the API server     | 23979                                 |
 | OLLAFORGE_LLAMA_URL | URL to clone llama.cpp from | https://github.com/ggml-org/llama.cpp |
+| OLLAFORGE_UI_PORT   | Port for the UI server      | 5979                                  |
 
 #### UI (Vite)
 
-| Variable     | Description     | Default                |
-| ------------ | --------------- | ---------------------- |
-| VITE_API_URL | Backend API URL | http://localhost:23979 |
+| Variable                   | Description                     | Default                                                         |
+| -------------------------- | ------------------------------- | --------------------------------------------------------------- |
+| VITE_API_URL               | Backend API URL                 | http://localhost:23979                                          |
+| VITE_DOC_LINK_HUGGINGFACE  | Hugging Face docs link          | https://huggingface.co/docs/transformers                        |
+| VITE_DOC_LINK_LORA         | LoRA documentation link         | https://huggingface.co/docs/peft/main/en/conceptual_guides/lora |
+| VITE_DOC_LINK_QLORA        | QLoRA paper link                | https://arxiv.org/abs/2305.14314                                |
+| VITE_DOC_LINK_TRANSFORMERS | Training documentation link     | https://huggingface.co/docs/transformers/training               |
+| VITE_HF_TOKEN_URL          | Hugging Face token settings URL | https://huggingface.co/settings/tokens                          |
 
 #### Backend (FastAPI)
 

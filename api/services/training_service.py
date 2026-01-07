@@ -32,6 +32,11 @@ from error_codes import ErrorCode
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+from models.project import (
+    ProjectLoraConfig,
+    QuantizationConfig,
+    TrainingConfig,
+)
 from models.training import (
     DataFileStatus,
     DeviceType,
@@ -41,7 +46,30 @@ from models.training import (
     TrainingTask,
 )
 
-MAX_LENGTH = 512
+# Default values for training parameters
+DEFAULT_MAX_LENGTH = 512
+DEFAULT_EPOCHS = 3
+DEFAULT_BATCH_SIZE_CUDA = 4
+DEFAULT_BATCH_SIZE_CPU = 1
+DEFAULT_GRADIENT_ACCUMULATION = 4
+DEFAULT_LEARNING_RATE_CUDA = 2e-4
+DEFAULT_LEARNING_RATE_CPU = 3e-4
+DEFAULT_WARMUP_RATIO_CUDA = 0.1
+DEFAULT_WARMUP_RATIO_CPU = 0.03
+DEFAULT_OPTIM_CUDA = "paged_adamw_8bit"
+DEFAULT_OPTIM_CPU = "adamw_torch"
+
+# Default LoRA parameters
+DEFAULT_LORA_R = 32
+DEFAULT_LORA_ALPHA = 64
+DEFAULT_LORA_DROPOUT = 0.05
+DEFAULT_LORA_TARGET_MODULES = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+# Default quantization parameters
+DEFAULT_LOAD_IN_4BIT = True
+DEFAULT_BNB_4BIT_QUANT_TYPE = "nf4"
+DEFAULT_BNB_4BIT_USE_DOUBLE_QUANT = True
+DEFAULT_OUTPUT_QUANTIZATION = "q8_0"
 
 # Task IDs in order
 TASK_IDS = [
@@ -68,6 +96,9 @@ class TrainingJob:
         model_name: str,
         data_files: list[str],
         quantization: str,
+        training_config: TrainingConfig | None = None,
+        lora_config: ProjectLoraConfig | None = None,
+        quantization_config: QuantizationConfig | None = None,
     ):
         self.job_id = job_id
         self.project_slug = project_slug
@@ -75,6 +106,11 @@ class TrainingJob:
         self.model_name = model_name
         self.data_files = data_files
         self.quantization = quantization
+
+        # Store project configurations
+        self.training_config = training_config
+        self.lora_config = lora_config
+        self.quantization_config = quantization_config
 
         self.status = TrainingStatus.IDLE
         self.progress = 0.0
@@ -191,6 +227,40 @@ class TrainingJob:
             file_statuses=self.get_file_statuses_list(),
         )
 
+    def get_effective_training_config(self, is_cuda: bool) -> dict:
+        """Get effective training configuration with defaults applied."""
+        config = self.training_config
+        return {
+            "num_train_epochs": (config.num_train_epochs if config and config.num_train_epochs is not None else DEFAULT_EPOCHS),
+            "per_device_train_batch_size": (config.per_device_train_batch_size if config and config.per_device_train_batch_size is not None else (DEFAULT_BATCH_SIZE_CUDA if is_cuda else DEFAULT_BATCH_SIZE_CPU)),
+            "gradient_accumulation_steps": (config.gradient_accumulation_steps if config and config.gradient_accumulation_steps is not None else DEFAULT_GRADIENT_ACCUMULATION),
+            "learning_rate": (config.learning_rate if config and config.learning_rate is not None else (DEFAULT_LEARNING_RATE_CUDA if is_cuda else DEFAULT_LEARNING_RATE_CPU)),
+            "warmup_ratio": (config.warmup_ratio if config and config.warmup_ratio is not None else (DEFAULT_WARMUP_RATIO_CUDA if is_cuda else DEFAULT_WARMUP_RATIO_CPU)),
+            "max_length": (config.max_length if config and config.max_length is not None else DEFAULT_MAX_LENGTH),
+            "fp16": (config.fp16 if config and config.fp16 is not None else is_cuda),
+            "optim": (config.optim if config and config.optim is not None else (DEFAULT_OPTIM_CUDA if is_cuda else DEFAULT_OPTIM_CPU)),
+        }
+
+    def get_effective_lora_config(self) -> dict:
+        """Get effective LoRA configuration with defaults applied."""
+        config = self.lora_config
+        return {
+            "r": (config.r if config and config.r is not None else DEFAULT_LORA_R),
+            "lora_alpha": (config.lora_alpha if config and config.lora_alpha is not None else DEFAULT_LORA_ALPHA),
+            "lora_dropout": (config.lora_dropout if config and config.lora_dropout is not None else DEFAULT_LORA_DROPOUT),
+            "target_modules": (config.target_modules if config and config.target_modules is not None else DEFAULT_LORA_TARGET_MODULES),
+        }
+
+    def get_effective_quantization_config(self) -> dict:
+        """Get effective quantization configuration with defaults applied."""
+        config = self.quantization_config
+        return {
+            "load_in_4bit": (config.load_in_4bit if config and config.load_in_4bit is not None else DEFAULT_LOAD_IN_4BIT),
+            "bnb_4bit_quant_type": (config.bnb_4bit_quant_type if config and config.bnb_4bit_quant_type is not None else DEFAULT_BNB_4BIT_QUANT_TYPE),
+            "bnb_4bit_use_double_quant": (config.bnb_4bit_use_double_quant if config and config.bnb_4bit_use_double_quant is not None else DEFAULT_BNB_4BIT_USE_DOUBLE_QUANT),
+            "output_quantization": (config.output_quantization if config and config.output_quantization is not None else DEFAULT_OUTPUT_QUANTIZATION),
+        }
+
 
 class TrainingService:
     """Service for managing training jobs."""
@@ -229,6 +299,9 @@ class TrainingService:
         model_name: str,
         data_files: list[str],
         quantization: str,
+        training_config: TrainingConfig | None = None,
+        lora_config: ProjectLoraConfig | None = None,
+        quantization_config: QuantizationConfig | None = None,
     ) -> TrainingJob:
         """Start a new training job. Returns immediately with job in IDLE status."""
         logger.info(f"start_training called: job_id={job_id}, project={project_slug}, model={model_name}")
@@ -247,6 +320,9 @@ class TrainingService:
                 model_name=model_name,
                 data_files=data_files,
                 quantization=quantization,
+                training_config=training_config,
+                lora_config=lora_config,
+                quantization_config=quantization_config,
             )
             self._jobs[project_slug] = job
             logger.info(f"Created TrainingJob: {job_id} (status: IDLE)")
@@ -336,7 +412,7 @@ class TrainingService:
             # Task 5: Setup LoRA
             job.set_task_status("setup_lora", TaskStatus.IN_PROGRESS)
             try:
-                model = self._setup_lora(model, LoraConfig, get_peft_model)
+                model = self._setup_lora(job, model, LoraConfig, get_peft_model)
             except Exception as e:
                 job.fail_task("setup_lora")
                 job.error_code = ErrorCode.TRAINING_FAILED
@@ -601,20 +677,34 @@ class TrainingService:
         job.set_task_progress("load_model", 30)
 
         if device == "cuda":
-            logger.info(f"[{job.job_id}] Loading with 4-bit quantization (QLoRA)")
-            bnb_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=torch.float16,
-                bnb_4bit_use_double_quant=True,
-            )
-            model = AutoModelForCausalLM.from_pretrained(
-                job.model_name,
-                quantization_config=bnb_config,
-                device_map="auto",
-                trust_remote_code=True,
-            )
-            model = prepare_model_for_kbit_training(model)
+            # Get effective quantization config
+            quant_cfg = job.get_effective_quantization_config()
+            load_in_4bit = quant_cfg["load_in_4bit"]
+
+            if load_in_4bit:
+                logger.info(f"[{job.job_id}] Loading with 4-bit quantization (QLoRA)")
+                logger.info(f"[{job.job_id}] Quantization config: type={quant_cfg['bnb_4bit_quant_type']}, double_quant={quant_cfg['bnb_4bit_use_double_quant']}")
+                bnb_config = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_quant_type=quant_cfg["bnb_4bit_quant_type"],
+                    bnb_4bit_compute_dtype=torch.float16,
+                    bnb_4bit_use_double_quant=quant_cfg["bnb_4bit_use_double_quant"],
+                )
+                model = AutoModelForCausalLM.from_pretrained(
+                    job.model_name,
+                    quantization_config=bnb_config,
+                    device_map="auto",
+                    trust_remote_code=True,
+                )
+                model = prepare_model_for_kbit_training(model)
+            else:
+                logger.info(f"[{job.job_id}] Loading without 4-bit quantization (CUDA)")
+                model = AutoModelForCausalLM.from_pretrained(
+                    job.model_name,
+                    torch_dtype=torch.float16,
+                    device_map="auto",
+                    trust_remote_code=True,
+                )
         else:
             logger.info(f"[{job.job_id}] Loading without quantization")
             model = AutoModelForCausalLM.from_pretrained(
@@ -630,13 +720,19 @@ class TrainingService:
         logger.info(f"[{job.job_id}] Model loaded successfully")
         return model, tokenizer
 
-    def _setup_lora(self, model, LoraConfig, get_peft_model):
+    def _setup_lora(self, job: TrainingJob, model, LoraConfig, get_peft_model):
         """Setup LoRA for efficient training."""
+        # Get effective LoRA config with project overrides
+        lora_cfg = job.get_effective_lora_config()
+
+        logger.info(f"[{job.job_id}] LoRA config: r={lora_cfg['r']}, alpha={lora_cfg['lora_alpha']}, dropout={lora_cfg['lora_dropout']}")
+        logger.info(f"[{job.job_id}] LoRA target modules: {lora_cfg['target_modules']}")
+
         lora_config = LoraConfig(
-            r=32,
-            lora_alpha=64,
-            target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
-            lora_dropout=0.05,
+            r=lora_cfg["r"],
+            lora_alpha=lora_cfg["lora_alpha"],
+            target_modules=lora_cfg["target_modules"],
+            lora_dropout=lora_cfg["lora_dropout"],
             bias="none",
             task_type="CAUSAL_LM",
         )
@@ -744,11 +840,17 @@ class TrainingService:
         # Using disk cache to avoid keeping tokenized data in memory
         job.set_task_progress("tokenize", 60)
 
+        # Get max_length from training config
+        is_cuda = job.device == DeviceType.CUDA
+        training_cfg = job.get_effective_training_config(is_cuda)
+        max_length = training_cfg["max_length"]
+        logger.info(f"[{job.job_id}] Using max_length={max_length} for tokenization")
+
         def tokenize_function(examples):
             return tokenizer(
                 examples["text"],
                 truncation=True,
-                max_length=MAX_LENGTH,
+                max_length=max_length,
                 padding="max_length",
             )
 
@@ -796,35 +898,28 @@ class TrainingService:
             def on_epoch_end(self, args, state, control, **kwargs):
                 logger.info(f"[{self.job.job_id}] Epoch {int(state.epoch)} completed")
 
-        # Training arguments based on device
-        if device == "cuda":
-            training_args = TrainingArguments(
-                output_dir=str(output_dir),
-                num_train_epochs=3,
-                per_device_train_batch_size=4,
-                gradient_accumulation_steps=4,
-                learning_rate=2e-4,
-                fp16=True,
-                logging_steps=10,
-                save_strategy="epoch",
-                warmup_ratio=0.1,
-                optim="paged_adamw_8bit",
-                report_to=[],
-            )
-        else:
-            training_args = TrainingArguments(
-                output_dir=str(output_dir),
-                num_train_epochs=3,
-                per_device_train_batch_size=1,
-                gradient_accumulation_steps=4,
-                learning_rate=3e-4,
-                fp16=False,
-                logging_steps=5,
-                save_strategy="epoch",
-                warmup_ratio=0.03,
-                optim="adamw_torch",
-                report_to=[],
-            )
+        # Get effective training config with project overrides
+        is_cuda = device == "cuda"
+        train_cfg = job.get_effective_training_config(is_cuda)
+
+        logger.info(f"[{job.job_id}] Training config: epochs={train_cfg['num_train_epochs']}, batch_size={train_cfg['per_device_train_batch_size']}")
+        logger.info(f"[{job.job_id}] Training config: lr={train_cfg['learning_rate']}, warmup={train_cfg['warmup_ratio']}, optim={train_cfg['optim']}")
+        logger.info(f"[{job.job_id}] Training config: fp16={train_cfg['fp16']}, grad_accum={train_cfg['gradient_accumulation_steps']}")
+
+        # Training arguments based on device with project overrides
+        training_args = TrainingArguments(
+            output_dir=str(output_dir),
+            num_train_epochs=train_cfg["num_train_epochs"],
+            per_device_train_batch_size=train_cfg["per_device_train_batch_size"],
+            gradient_accumulation_steps=train_cfg["gradient_accumulation_steps"],
+            learning_rate=train_cfg["learning_rate"],
+            fp16=train_cfg["fp16"],
+            logging_steps=10 if is_cuda else 5,
+            save_strategy="epoch",
+            warmup_ratio=train_cfg["warmup_ratio"],
+            optim=train_cfg["optim"],
+            report_to=[],
+        )
 
         data_collator = DataCollatorForLanguageModeling(
             tokenizer=tokenizer,
@@ -939,7 +1034,15 @@ class TrainingService:
 
         gguf_path = output_dir / f"model_v{version}.gguf"
 
+        # Get output quantization from config (with fallback to request value)
+        quant_cfg = job.get_effective_quantization_config()
+        output_quant = quant_cfg["output_quantization"]
+        # If quantization was explicitly set in request and differs from default, prefer request value
+        if job.quantization and job.quantization != DEFAULT_OUTPUT_QUANTIZATION:
+            output_quant = job.quantization
+
         logger.info(f"[{job.job_id}] Converting to GGUF: {convert_script}")
+        logger.info(f"[{job.job_id}] Output quantization: {output_quant}")
         cmd = [
             sys.executable,
             str(convert_script),
@@ -947,7 +1050,7 @@ class TrainingService:
             "--outfile",
             str(gguf_path),
             "--outtype",
-            job.quantization,
+            output_quant,
         ]
 
         job.set_task_progress("convert_gguf", 50)

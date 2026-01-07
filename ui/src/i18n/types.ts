@@ -108,6 +108,99 @@ export interface TranslationSchema {
       targetNamePlaceholder: string;
       configuration: string;
       status: string;
+      tabs: {
+        basic: string;
+        advanced: string;
+      };
+      advancedPlaceholder: string;
+    };
+    advancedConfig: {
+      helpPanel: {
+        title: string;
+        description: string;
+        learnMore: string;
+        links: {
+          huggingface: string;
+          qlora: string;
+          lora: string;
+          transformers: string;
+        };
+      };
+      trainingParams: {
+        title: string;
+        numEpochs: string;
+        numEpochsHelp: string;
+        batchSize: string;
+        batchSizeHelp: string;
+        gradientAccumulation: string;
+        gradientAccumulationHelp: string;
+        learningRate: string;
+        learningRateHelp: string;
+        warmupRatio: string;
+        warmupRatioHelp: string;
+        maxLength: string;
+        maxLengthHelp: string;
+        fp16: string;
+        fp16Help: string;
+        optimizer: string;
+        optimizerHelp: string;
+        optimizers: {
+          paged_adamw_8bit: string;
+          adamw_torch: string;
+          adamw_hf: string;
+          sgd: string;
+        };
+      };
+      defaults: {
+        showDefaults: string;
+        cudaDefault: string;
+        cpuDefault: string;
+        resetToDefaults: string;
+        resetConfirm: string;
+      };
+      loraParams: {
+        title: string;
+        rank: string;
+        rankHelp: string;
+        alpha: string;
+        alphaHelp: string;
+        dropout: string;
+        dropoutHelp: string;
+        targetModules: string;
+        targetModulesHelp: string;
+        modules: {
+          q_proj: string;
+          k_proj: string;
+          v_proj: string;
+          o_proj: string;
+          gate_proj: string;
+          up_proj: string;
+          down_proj: string;
+        };
+      };
+      quantizationParams: {
+        title: string;
+        loadIn4bit: string;
+        loadIn4bitHelp: string;
+        quantType: string;
+        quantTypeHelp: string;
+        quantTypes: {
+          nf4: string;
+          fp4: string;
+        };
+        doubleQuant: string;
+        doubleQuantHelp: string;
+        outputQuantization: string;
+        outputQuantizationHelp: string;
+        outputTypes: {
+          f32: string;
+          f16: string;
+          bf16: string;
+          q8_0: string;
+          auto: string;
+        };
+        cudaOnly: string;
+      };
     };
     dataFiles: {
       title: string;

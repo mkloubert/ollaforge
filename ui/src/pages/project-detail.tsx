@@ -18,15 +18,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   AlertTriangle,
+  BookOpen,
   Check,
+  ChevronDown,
   Circle,
+  ExternalLink,
   FileText,
   FolderOpen,
+  HelpCircle,
   Home,
   Loader2,
   Play,
   Rocket,
   Package,
+  RotateCcw,
   SkipForward,
   Sparkles,
   StopCircle,
@@ -64,9 +69,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -76,6 +87,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
   TooltipContent,
@@ -88,7 +100,7 @@ import { useOllama } from "@/hooks/useOllama";
 import { useProject } from "@/hooks/useProject";
 import { useTraining } from "@/hooks/useTraining";
 import { updateProject } from "@/lib/projects";
-import type { DataFileStatus, Model, TaskStatus, TrainingStatus, TrainingTask } from "@/types";
+import type { DataFileStatus, LoraConfig, Model, QuantizationConfig, TaskStatus, TrainingConfig, TrainingStatus, TrainingTask } from "@/types";
 
 function TaskStatusIcon({ status }: { status: TaskStatus }) {
   switch (status) {
@@ -209,6 +221,23 @@ export function ProjectDetailPage() {
   const [fileErrorCounts, setFileErrorCounts] = useState<Record<string, number>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Advanced config state
+  const [trainingConfigOverride, setTrainingConfigOverride] = useState<TrainingConfig | null>(null);
+  const [loraConfigOverride, setLoraConfigOverride] = useState<LoraConfig | null>(null);
+  const [quantizationConfigOverride, setQuantizationConfigOverride] = useState<QuantizationConfig | null>(null);
+  const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(true);
+  const [isTrainingParamsOpen, setIsTrainingParamsOpen] = useState(false);
+  const [isLoraParamsOpen, setIsLoraParamsOpen] = useState(false);
+  const [isQuantizationParamsOpen, setIsQuantizationParamsOpen] = useState(false);
+
+  // Documentation links (configurable via environment variables)
+  const docLinks = useMemo(() => ({
+    transformers: import.meta.env.VITE_DOC_LINK_TRANSFORMERS || "https://huggingface.co/docs/transformers/training",
+    qlora: import.meta.env.VITE_DOC_LINK_QLORA || "https://arxiv.org/abs/2305.14314",
+    lora: import.meta.env.VITE_DOC_LINK_LORA || "https://huggingface.co/docs/peft/main/en/conceptual_guides/lora",
+    huggingface: import.meta.env.VITE_DOC_LINK_HUGGINGFACE || "https://huggingface.co/docs/transformers",
+  }), []);
+
   // Combined models list: API models + saved project model (if not already in list)
   const combinedModels = useMemo((): Model[] => {
     const savedModel = project?.model;
@@ -261,6 +290,168 @@ export function ProjectDetailPage() {
     }
     return map;
   }, [trainingFileStatuses]);
+
+  // Effective training config: local override > project value
+  const effectiveTrainingConfig = useMemo((): TrainingConfig => {
+    const projectConfig = project?.training_config || {};
+    const overrideConfig = trainingConfigOverride || {};
+    return { ...projectConfig, ...overrideConfig };
+  }, [project, trainingConfigOverride]);
+
+  // Effective LoRA config: local override > project value
+  const effectiveLoraConfig = useMemo((): LoraConfig => {
+    const projectConfig = project?.lora_config || {};
+    const overrideConfig = loraConfigOverride || {};
+    return { ...projectConfig, ...overrideConfig };
+  }, [project, loraConfigOverride]);
+
+  // Effective Quantization config: local override > project value
+  const effectiveQuantizationConfig = useMemo((): QuantizationConfig => {
+    const projectConfig = project?.quantization_config || {};
+    const overrideConfig = quantizationConfigOverride || {};
+    return { ...projectConfig, ...overrideConfig };
+  }, [project, quantizationConfigOverride]);
+
+  // Handle training config change and persist to project
+  const handleTrainingConfigChange = useCallback(
+    async <K extends keyof TrainingConfig>(key: K, value: TrainingConfig[K]) => {
+      const newConfig = { ...effectiveTrainingConfig, [key]: value };
+      setTrainingConfigOverride(newConfig);
+
+      // Persist to project
+      if (project && slug) {
+        try {
+          await updateProject(slug, {
+            name: project.name,
+            description: project.description,
+            model: effectiveSelectedModel || null,
+            target_name: effectiveTargetName || null,
+            training_config: newConfig,
+            lora_config: project.lora_config,
+            quantization_config: project.quantization_config,
+          });
+        } catch {
+          // Silent fail - config is still set locally
+        }
+      }
+    },
+    [effectiveTrainingConfig, effectiveSelectedModel, effectiveTargetName, project, slug]
+  );
+
+  // Handle LoRA config change and persist to project
+  const handleLoraConfigChange = useCallback(
+    async <K extends keyof LoraConfig>(key: K, value: LoraConfig[K]) => {
+      const newConfig = { ...effectiveLoraConfig, [key]: value };
+      setLoraConfigOverride(newConfig);
+
+      // Persist to project
+      if (project && slug) {
+        try {
+          await updateProject(slug, {
+            name: project.name,
+            description: project.description,
+            model: effectiveSelectedModel || null,
+            target_name: effectiveTargetName || null,
+            training_config: project.training_config,
+            lora_config: newConfig,
+            quantization_config: project.quantization_config,
+          });
+        } catch {
+          // Silent fail - config is still set locally
+        }
+      }
+    },
+    [effectiveLoraConfig, effectiveSelectedModel, effectiveTargetName, project, slug]
+  );
+
+  // Handle Quantization config change and persist to project
+  const handleQuantizationConfigChange = useCallback(
+    async <K extends keyof QuantizationConfig>(key: K, value: QuantizationConfig[K]) => {
+      const newConfig = { ...effectiveQuantizationConfig, [key]: value };
+      setQuantizationConfigOverride(newConfig);
+
+      // Persist to project
+      if (project && slug) {
+        try {
+          await updateProject(slug, {
+            name: project.name,
+            description: project.description,
+            model: effectiveSelectedModel || null,
+            target_name: effectiveTargetName || null,
+            training_config: project.training_config,
+            lora_config: project.lora_config,
+            quantization_config: newConfig,
+          });
+        } catch {
+          // Silent fail - config is still set locally
+        }
+      }
+    },
+    [effectiveQuantizationConfig, effectiveSelectedModel, effectiveTargetName, project, slug]
+  );
+
+  // Reset Training config to defaults
+  const handleResetTrainingConfig = useCallback(async () => {
+    setTrainingConfigOverride({});
+
+    if (project && slug) {
+      try {
+        await updateProject(slug, {
+          name: project.name,
+          description: project.description,
+          model: effectiveSelectedModel || null,
+          target_name: effectiveTargetName || null,
+          training_config: {},
+          lora_config: project.lora_config,
+          quantization_config: project.quantization_config,
+        });
+      } catch {
+        // Silent fail
+      }
+    }
+  }, [effectiveSelectedModel, effectiveTargetName, project, slug]);
+
+  // Reset LoRA config to defaults
+  const handleResetLoraConfig = useCallback(async () => {
+    setLoraConfigOverride({});
+
+    if (project && slug) {
+      try {
+        await updateProject(slug, {
+          name: project.name,
+          description: project.description,
+          model: effectiveSelectedModel || null,
+          target_name: effectiveTargetName || null,
+          training_config: project.training_config,
+          lora_config: {},
+          quantization_config: project.quantization_config,
+        });
+      } catch {
+        // Silent fail
+      }
+    }
+  }, [effectiveSelectedModel, effectiveTargetName, project, slug]);
+
+  // Reset Quantization config to defaults
+  const handleResetQuantizationConfig = useCallback(async () => {
+    setQuantizationConfigOverride({});
+
+    if (project && slug) {
+      try {
+        await updateProject(slug, {
+          name: project.name,
+          description: project.description,
+          model: effectiveSelectedModel || null,
+          target_name: effectiveTargetName || null,
+          training_config: project.training_config,
+          lora_config: project.lora_config,
+          quantization_config: {},
+        });
+      } catch {
+        // Silent fail
+      }
+    }
+  }, [effectiveSelectedModel, effectiveTargetName, project, slug]);
 
   // Handle model selection change and persist to project
   const handleModelChange = useCallback(
@@ -559,186 +750,793 @@ export function ProjectDetailPage() {
                   {t("project.configuration")}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex flex-col gap-6">
-                {/* Model Selection */}
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="model-select">
-                    {t("project.selectModel")}
-                  </Label>
-                  <Select
-                    value={effectiveSelectedModel}
-                    onValueChange={handleModelChange}
-                    disabled={modelsLoading || isTrainingActive}
-                  >
-                    <SelectTrigger id="model-select" className="w-full">
-                      <SelectValue
-                        placeholder={
-                          modelsLoading
-                            ? t("common.loading")
-                            : t("project.selectModelPlaceholder")
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {combinedModels.map((model) => (
-                        <SelectItem key={model.name} value={model.name}>
-                          {model.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <CardContent className="flex flex-col gap-4">
+                <Tabs defaultValue="basic" className="w-full">
+                  <TabsList className="w-full">
+                    <TabsTrigger value="basic" className="flex-1">
+                      {t("project.tabs.basic")}
+                    </TabsTrigger>
+                    <TabsTrigger value="advanced" className="flex-1">
+                      {t("project.tabs.advanced")}
+                    </TabsTrigger>
+                  </TabsList>
 
-                {/* Target Model Name */}
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="target-name-input">
-                    {t("project.targetName")}
-                  </Label>
-                  <Input
-                    id="target-name-input"
-                    value={effectiveTargetName}
-                    onChange={(e) => handleTargetNameChange(e.target.value)}
-                    placeholder={defaultTargetName || t("project.targetNamePlaceholder")}
-                    disabled={isTrainingActive}
-                  />
-                </div>
-
-                <Separator />
-
-                {/* Data Files Section */}
-                <div className="flex flex-col gap-3">
-                  <Label>{t("dataFiles.title")}</Label>
-
-                  {/* Hidden file input */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".jsonl"
-                    multiple
-                    className="hidden"
-                    onChange={handleFileSelect}
-                  />
-
-                  {/* Dropzone */}
-                  <div
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    onClick={handleUploadClick}
-                    className={`
-                      border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
-                      transition-colors duration-200
-                      ${isDragOver
-                        ? "border-primary bg-primary/5"
-                        : "border-muted-foreground/25 hover:border-muted-foreground/50"
-                      }
-                      ${isUploading || isTrainingActive ? "pointer-events-none opacity-50" : ""}
-                    `}
-                  >
-                    {isUploading ? (
-                      <div className="flex flex-col items-center gap-2">
-                        <Spinner className="h-6 w-6" />
-                        <span className="text-sm text-muted-foreground">
-                          {t("dataFiles.uploading")}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center gap-2">
-                        <Upload className="h-8 w-8 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">
-                          {isDragOver
-                            ? t("dataFiles.dropzoneActive")
-                            : t("dataFiles.dropzone")}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* File List */}
-                  {filesLoading ? (
-                    <div className="flex justify-center py-4">
-                      <Spinner className="h-5 w-5" />
+                  {/* Basic Tab */}
+                  <TabsContent value="basic" className="flex flex-col gap-6 mt-4">
+                    {/* Model Selection */}
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="model-select">
+                        {t("project.selectModel")}
+                      </Label>
+                      <Select
+                        value={effectiveSelectedModel}
+                        onValueChange={handleModelChange}
+                        disabled={modelsLoading || isTrainingActive}
+                      >
+                        <SelectTrigger id="model-select" className="w-full">
+                          <SelectValue
+                            placeholder={
+                              modelsLoading
+                                ? t("common.loading")
+                                : t("project.selectModelPlaceholder")
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {combinedModels.map((model) => (
+                            <SelectItem key={model.name} value={model.name}>
+                              {model.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  ) : files.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-2">
-                      {t("dataFiles.empty")}
-                    </p>
-                  ) : (
-                    <TooltipProvider>
-                      <div className="flex flex-col gap-2">
-                        {files.map((file) => {
-                          const errorCount = fileErrorCounts[file.filename];
-                          const hasErrors = errorCount !== undefined && errorCount > 0;
-                          const fileStatus = fileStatusMap.get(file.filename);
 
-                          return (
-                            <div
-                              key={file.filename}
-                              className="flex items-center justify-between p-3 rounded-lg border bg-card"
-                            >
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <button
-                                    type="button"
-                                    className="flex items-center gap-3 min-w-0 flex-1 text-left hover:opacity-70 transition-opacity cursor-pointer"
-                                    onClick={() => setPreviewFile(file.filename)}
-                                  >
-                                    {/* Show status icon during training, otherwise file icon */}
-                                    {fileStatus ? (
-                                      <FileStatusIcon status={fileStatus.status} />
-                                    ) : (
-                                      <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                                    )}
-                                    <div className="min-w-0">
-                                      <p className="text-sm font-medium truncate">
-                                        {file.filename}
-                                      </p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {file.size_formatted}
-                                      </p>
-                                    </div>
-                                  </button>
-                                </TooltipTrigger>
-                                {fileStatus && (
-                                  <TooltipContent>
-                                    {t(`dataFiles.fileStatus.${fileStatus.status}`, {
-                                      loaded: fileStatus.rows_loaded,
-                                      skipped: fileStatus.rows_skipped,
-                                    })}
-                                  </TooltipContent>
-                                )}
-                              </Tooltip>
-                              <div className="flex items-center gap-1 shrink-0">
-                                {/* Validation error warning (only when not in training) */}
-                                {hasErrors && !fileStatus && (
+                    {/* Target Model Name */}
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="target-name-input">
+                        {t("project.targetName")}
+                      </Label>
+                      <Input
+                        id="target-name-input"
+                        value={effectiveTargetName}
+                        onChange={(e) => handleTargetNameChange(e.target.value)}
+                        placeholder={defaultTargetName || t("project.targetNamePlaceholder")}
+                        disabled={isTrainingActive}
+                      />
+                    </div>
+
+                    <Separator />
+
+                    {/* Data Files Section */}
+                    <div className="flex flex-col gap-3">
+                      <Label>{t("dataFiles.title")}</Label>
+
+                      {/* Hidden file input */}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".jsonl"
+                        multiple
+                        className="hidden"
+                        onChange={handleFileSelect}
+                      />
+
+                      {/* Dropzone */}
+                      <div
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        onClick={handleUploadClick}
+                        className={`
+                          border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
+                          transition-colors duration-200
+                          ${isDragOver
+                            ? "border-primary bg-primary/5"
+                            : "border-muted-foreground/25 hover:border-muted-foreground/50"
+                          }
+                          ${isUploading || isTrainingActive ? "pointer-events-none opacity-50" : ""}
+                        `}
+                      >
+                        {isUploading ? (
+                          <div className="flex flex-col items-center gap-2">
+                            <Spinner className="h-6 w-6" />
+                            <span className="text-sm text-muted-foreground">
+                              {t("dataFiles.uploading")}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-2">
+                            <Upload className="h-8 w-8 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">
+                              {isDragOver
+                                ? t("dataFiles.dropzoneActive")
+                                : t("dataFiles.dropzone")}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* File List */}
+                      {filesLoading ? (
+                        <div className="flex justify-center py-4">
+                          <Spinner className="h-5 w-5" />
+                        </div>
+                      ) : files.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-2">
+                          {t("dataFiles.empty")}
+                        </p>
+                      ) : (
+                        <TooltipProvider>
+                          <div className="flex flex-col gap-2">
+                            {files.map((file) => {
+                              const errorCount = fileErrorCounts[file.filename];
+                              const hasErrors = errorCount !== undefined && errorCount > 0;
+                              const fileStatus = fileStatusMap.get(file.filename);
+
+                              return (
+                                <div
+                                  key={file.filename}
+                                  className="flex items-center justify-between p-3 rounded-lg border bg-card"
+                                >
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <div className="p-2">
-                                        <AlertTriangle className="h-4 w-4 text-amber-500" />
-                                      </div>
+                                      <button
+                                        type="button"
+                                        className="flex items-center gap-3 min-w-0 flex-1 text-left hover:opacity-70 transition-opacity cursor-pointer"
+                                        onClick={() => setPreviewFile(file.filename)}
+                                      >
+                                        {/* Show status icon during training, otherwise file icon */}
+                                        {fileStatus ? (
+                                          <FileStatusIcon status={fileStatus.status} />
+                                        ) : (
+                                          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                                        )}
+                                        <div className="min-w-0">
+                                          <p className="text-sm font-medium truncate">
+                                            {file.filename}
+                                          </p>
+                                          <p className="text-xs text-muted-foreground">
+                                            {file.size_formatted}
+                                          </p>
+                                        </div>
+                                      </button>
                                     </TooltipTrigger>
-                                    <TooltipContent>
-                                      {t("dataFiles.errorCount", { count: errorCount })}
-                                    </TooltipContent>
+                                    {fileStatus && (
+                                      <TooltipContent>
+                                        {t(`dataFiles.fileStatus.${fileStatus.status}`, {
+                                          loaded: fileStatus.rows_loaded,
+                                          skipped: fileStatus.rows_skipped,
+                                        })}
+                                      </TooltipContent>
+                                    )}
                                   </Tooltip>
-                                )}
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                  onClick={() => handleDelete(file.filename)}
-                                  disabled={isTrainingActive}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {/* Validation error warning (only when not in training) */}
+                                    {hasErrors && !fileStatus && (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <div className="p-2">
+                                            <AlertTriangle className="h-4 w-4 text-amber-500" />
+                                          </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          {t("dataFiles.errorCount", { count: errorCount })}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    )}
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                      onClick={() => handleDelete(file.filename)}
+                                      disabled={isTrainingActive}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </TooltipProvider>
+                      )}
+                    </div>
+                  </TabsContent>
+
+                  {/* Advanced Tab */}
+                  <TabsContent value="advanced" className="flex flex-col gap-4 mt-4">
+                    {/* Help Panel */}
+                    <Collapsible open={isHelpPanelOpen} onOpenChange={setIsHelpPanelOpen}>
+                      <CollapsibleTrigger asChild>
+                        <Button variant="outline" className="w-full justify-between p-3 h-auto">
+                          <div className="flex items-center gap-2">
+                            <BookOpen className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium">{t("advancedConfig.helpPanel.title")}</span>
+                          </div>
+                          <ChevronDown className={`h-4 w-4 transition-transform ${isHelpPanelOpen ? "rotate-180" : ""}`} />
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pt-4">
+                        <div className="bg-muted/50 rounded-lg p-4 space-y-4">
+                          <p className="text-sm text-muted-foreground leading-relaxed">
+                            {t("advancedConfig.helpPanel.description")}
+                          </p>
+                          <div className="flex flex-col gap-2">
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                              {t("advancedConfig.helpPanel.learnMore")}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              <a
+                                href={docLinks.transformers}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                              >
+                                {t("advancedConfig.helpPanel.links.transformers")}
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                              <a
+                                href={docLinks.qlora}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                              >
+                                {t("advancedConfig.helpPanel.links.qlora")}
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                              <a
+                                href={docLinks.lora}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                              >
+                                {t("advancedConfig.helpPanel.links.lora")}
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                              <a
+                                href={docLinks.huggingface}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                              >
+                                {t("advancedConfig.helpPanel.links.huggingface")}
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </TooltipProvider>
-                  )}
-                </div>
+                          </div>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    {/* Training Parameters Section */}
+                    <Collapsible open={isTrainingParamsOpen} onOpenChange={setIsTrainingParamsOpen}>
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" className="w-full justify-between p-2 h-auto">
+                          <span className="font-medium">{t("advancedConfig.trainingParams.title")}</span>
+                          <ChevronDown className={`h-4 w-4 transition-transform ${isTrainingParamsOpen ? "rotate-180" : ""}`} />
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pt-4 space-y-4">
+                        {/* Reset Button */}
+                        <div className="flex justify-end">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                                onClick={handleResetTrainingConfig}
+                                disabled={isTrainingActive}
+                              >
+                                <RotateCcw className="h-3 w-3 mr-1" />
+                                {t("advancedConfig.defaults.resetToDefaults")}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{t("advancedConfig.defaults.resetConfirm")}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+
+                        {/* Epochs */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="num-epochs">{t("advancedConfig.trainingParams.numEpochs")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.trainingParams.numEpochsHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Input
+                            id="num-epochs"
+                            type="number"
+                            min={1}
+                            max={10}
+                            placeholder="3"
+                            value={effectiveTrainingConfig.num_train_epochs ?? ""}
+                            onChange={(e) => handleTrainingConfigChange("num_train_epochs", e.target.value ? parseInt(e.target.value) : null)}
+                            disabled={isTrainingActive}
+                          />
+                        </div>
+
+                        {/* Batch Size */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="batch-size">{t("advancedConfig.trainingParams.batchSize")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.trainingParams.batchSizeHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Input
+                            id="batch-size"
+                            type="number"
+                            min={1}
+                            max={16}
+                            placeholder="4 (GPU) / 1 (CPU)"
+                            value={effectiveTrainingConfig.per_device_train_batch_size ?? ""}
+                            onChange={(e) => handleTrainingConfigChange("per_device_train_batch_size", e.target.value ? parseInt(e.target.value) : null)}
+                            disabled={isTrainingActive}
+                          />
+                        </div>
+
+                        {/* Gradient Accumulation */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="grad-accum">{t("advancedConfig.trainingParams.gradientAccumulation")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.trainingParams.gradientAccumulationHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Input
+                            id="grad-accum"
+                            type="number"
+                            min={1}
+                            max={32}
+                            placeholder="4"
+                            value={effectiveTrainingConfig.gradient_accumulation_steps ?? ""}
+                            onChange={(e) => handleTrainingConfigChange("gradient_accumulation_steps", e.target.value ? parseInt(e.target.value) : null)}
+                            disabled={isTrainingActive}
+                          />
+                        </div>
+
+                        {/* Learning Rate */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="learning-rate">{t("advancedConfig.trainingParams.learningRate")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.trainingParams.learningRateHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Input
+                            id="learning-rate"
+                            type="number"
+                            step="0.0001"
+                            min={0.000001}
+                            max={0.01}
+                            placeholder="0.0002 (GPU) / 0.0003 (CPU)"
+                            value={effectiveTrainingConfig.learning_rate ?? ""}
+                            onChange={(e) => handleTrainingConfigChange("learning_rate", e.target.value ? parseFloat(e.target.value) : null)}
+                            disabled={isTrainingActive}
+                          />
+                        </div>
+
+                        {/* Warmup Ratio */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="warmup-ratio">{t("advancedConfig.trainingParams.warmupRatio")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.trainingParams.warmupRatioHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Input
+                            id="warmup-ratio"
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            max={1}
+                            placeholder="0.1 (GPU) / 0.03 (CPU)"
+                            value={effectiveTrainingConfig.warmup_ratio ?? ""}
+                            onChange={(e) => handleTrainingConfigChange("warmup_ratio", e.target.value ? parseFloat(e.target.value) : null)}
+                            disabled={isTrainingActive}
+                          />
+                        </div>
+
+                        {/* Max Token Length */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="max-length">{t("advancedConfig.trainingParams.maxLength")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.trainingParams.maxLengthHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Select
+                            value={effectiveTrainingConfig.max_length?.toString() ?? ""}
+                            onValueChange={(value) => handleTrainingConfigChange("max_length", value ? parseInt(value) : null)}
+                            disabled={isTrainingActive}
+                          >
+                            <SelectTrigger id="max-length">
+                              <SelectValue placeholder="512" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="512">512</SelectItem>
+                              <SelectItem value="1024">1024</SelectItem>
+                              <SelectItem value="2048">2048</SelectItem>
+                              <SelectItem value="4096">4096</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* FP16 */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="fp16">{t("advancedConfig.trainingParams.fp16")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.trainingParams.fp16Help")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Switch
+                            id="fp16"
+                            checked={effectiveTrainingConfig.fp16 ?? false}
+                            onCheckedChange={(checked) => handleTrainingConfigChange("fp16", checked)}
+                            disabled={isTrainingActive}
+                          />
+                        </div>
+
+                        {/* Optimizer */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="optimizer">{t("advancedConfig.trainingParams.optimizer")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.trainingParams.optimizerHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Select
+                            value={effectiveTrainingConfig.optim ?? ""}
+                            onValueChange={(value) => handleTrainingConfigChange("optim", value || null)}
+                            disabled={isTrainingActive}
+                          >
+                            <SelectTrigger id="optimizer">
+                              <SelectValue placeholder={t("advancedConfig.trainingParams.optimizers.paged_adamw_8bit")} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="paged_adamw_8bit">{t("advancedConfig.trainingParams.optimizers.paged_adamw_8bit")}</SelectItem>
+                              <SelectItem value="adamw_torch">{t("advancedConfig.trainingParams.optimizers.adamw_torch")}</SelectItem>
+                              <SelectItem value="adamw_hf">{t("advancedConfig.trainingParams.optimizers.adamw_hf")}</SelectItem>
+                              <SelectItem value="sgd">{t("advancedConfig.trainingParams.optimizers.sgd")}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    {/* LoRA Configuration Section */}
+                    <Collapsible open={isLoraParamsOpen} onOpenChange={setIsLoraParamsOpen}>
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" className="w-full justify-between p-2 h-auto">
+                          <span className="font-medium">{t("advancedConfig.loraParams.title")}</span>
+                          <ChevronDown className={`h-4 w-4 transition-transform ${isLoraParamsOpen ? "rotate-180" : ""}`} />
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pt-4 space-y-4">
+                        {/* Reset Button */}
+                        <div className="flex justify-end">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                                onClick={handleResetLoraConfig}
+                                disabled={isTrainingActive}
+                              >
+                                <RotateCcw className="h-3 w-3 mr-1" />
+                                {t("advancedConfig.defaults.resetToDefaults")}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{t("advancedConfig.defaults.resetConfirm")}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+
+                        {/* Rank */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="lora-rank">{t("advancedConfig.loraParams.rank")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.loraParams.rankHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Input
+                            id="lora-rank"
+                            type="number"
+                            min={4}
+                            max={256}
+                            placeholder="32"
+                            value={effectiveLoraConfig.r ?? ""}
+                            onChange={(e) => handleLoraConfigChange("r", e.target.value ? parseInt(e.target.value) : null)}
+                            disabled={isTrainingActive}
+                          />
+                        </div>
+
+                        {/* Alpha */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="lora-alpha">{t("advancedConfig.loraParams.alpha")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.loraParams.alphaHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Input
+                            id="lora-alpha"
+                            type="number"
+                            min={8}
+                            max={512}
+                            placeholder="64"
+                            value={effectiveLoraConfig.lora_alpha ?? ""}
+                            onChange={(e) => handleLoraConfigChange("lora_alpha", e.target.value ? parseInt(e.target.value) : null)}
+                            disabled={isTrainingActive}
+                          />
+                        </div>
+
+                        {/* Dropout */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="lora-dropout">{t("advancedConfig.loraParams.dropout")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.loraParams.dropoutHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Input
+                            id="lora-dropout"
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            max={0.5}
+                            placeholder="0.05"
+                            value={effectiveLoraConfig.lora_dropout ?? ""}
+                            onChange={(e) => handleLoraConfigChange("lora_dropout", e.target.value ? parseFloat(e.target.value) : null)}
+                            disabled={isTrainingActive}
+                          />
+                        </div>
+
+                        {/* Target Modules */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label>{t("advancedConfig.loraParams.targetModules")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.loraParams.targetModulesHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            {(["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"] as const).map((module) => {
+                              const currentModules = effectiveLoraConfig.target_modules ?? ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"];
+                              const isChecked = currentModules.includes(module);
+                              return (
+                                <div key={module} className="flex items-center space-x-2">
+                                  <input
+                                    type="checkbox"
+                                    id={`module-${module}`}
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      const newModules = e.target.checked
+                                        ? [...currentModules, module]
+                                        : currentModules.filter((m) => m !== module);
+                                      handleLoraConfigChange("target_modules", newModules.length > 0 ? newModules : null);
+                                    }}
+                                    disabled={isTrainingActive}
+                                    className="h-4 w-4 rounded border-gray-300"
+                                  />
+                                  <Label htmlFor={`module-${module}`} className="text-sm font-normal cursor-pointer">
+                                    {t(`advancedConfig.loraParams.modules.${module}`)}
+                                  </Label>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    {/* Quantization Configuration Section */}
+                    <Collapsible open={isQuantizationParamsOpen} onOpenChange={setIsQuantizationParamsOpen}>
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" className="w-full justify-between p-2 h-auto">
+                          <span className="font-medium">{t("advancedConfig.quantizationParams.title")}</span>
+                          <ChevronDown className={`h-4 w-4 transition-transform ${isQuantizationParamsOpen ? "rotate-180" : ""}`} />
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pt-4 space-y-4">
+                        {/* Reset Button */}
+                        <div className="flex justify-end">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                                onClick={handleResetQuantizationConfig}
+                                disabled={isTrainingActive}
+                              >
+                                <RotateCcw className="h-3 w-3 mr-1" />
+                                {t("advancedConfig.defaults.resetToDefaults")}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{t("advancedConfig.defaults.resetConfirm")}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+
+                        {/* CUDA-only info */}
+                        <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
+                          {t("advancedConfig.quantizationParams.cudaOnly")}
+                        </p>
+
+                        {/* Load in 4-bit */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="load-4bit">{t("advancedConfig.quantizationParams.loadIn4bit")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.quantizationParams.loadIn4bitHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Switch
+                            id="load-4bit"
+                            checked={effectiveQuantizationConfig.load_in_4bit ?? true}
+                            onCheckedChange={(checked) => handleQuantizationConfigChange("load_in_4bit", checked)}
+                            disabled={isTrainingActive}
+                          />
+                        </div>
+
+                        {/* 4-bit Quantization Type */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="quant-type">{t("advancedConfig.quantizationParams.quantType")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.quantizationParams.quantTypeHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Select
+                            value={effectiveQuantizationConfig.bnb_4bit_quant_type ?? "nf4"}
+                            onValueChange={(value) => handleQuantizationConfigChange("bnb_4bit_quant_type", value)}
+                            disabled={isTrainingActive}
+                          >
+                            <SelectTrigger id="quant-type">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="nf4">{t("advancedConfig.quantizationParams.quantTypes.nf4")}</SelectItem>
+                              <SelectItem value="fp4">{t("advancedConfig.quantizationParams.quantTypes.fp4")}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Double Quantization */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="double-quant">{t("advancedConfig.quantizationParams.doubleQuant")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.quantizationParams.doubleQuantHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Switch
+                            id="double-quant"
+                            checked={effectiveQuantizationConfig.bnb_4bit_use_double_quant ?? true}
+                            onCheckedChange={(checked) => handleQuantizationConfigChange("bnb_4bit_use_double_quant", checked)}
+                            disabled={isTrainingActive}
+                          />
+                        </div>
+
+                        {/* Output Quantization */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="output-quant">{t("advancedConfig.quantizationParams.outputQuantization")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.quantizationParams.outputQuantizationHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Select
+                            value={effectiveQuantizationConfig.output_quantization ?? "q8_0"}
+                            onValueChange={(value) => handleQuantizationConfigChange("output_quantization", value)}
+                            disabled={isTrainingActive}
+                          >
+                            <SelectTrigger id="output-quant">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="f32">{t("advancedConfig.quantizationParams.outputTypes.f32")}</SelectItem>
+                              <SelectItem value="f16">{t("advancedConfig.quantizationParams.outputTypes.f16")}</SelectItem>
+                              <SelectItem value="bf16">{t("advancedConfig.quantizationParams.outputTypes.bf16")}</SelectItem>
+                              <SelectItem value="q8_0">{t("advancedConfig.quantizationParams.outputTypes.q8_0")}</SelectItem>
+                              <SelectItem value="auto">{t("advancedConfig.quantizationParams.outputTypes.auto")}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </Card>
           </div>
