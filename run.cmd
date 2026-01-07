@@ -22,7 +22,7 @@ REM Configuration
 REM =============================================================================
 
 set "REQUIRED_PYTHON_MAJOR=3"
-set "REQUIRED_PYTHON_MINOR=13"
+set "REQUIRED_PYTHON_MINOR=10"
 set "REQUIRED_NODE_MAJOR=20"
 set "FALLBACK_NODE_VERSION=20.18.1"
 set "NODE_RELEASE_INDEX_URL=https://nodejs.org/download/release/index.json"

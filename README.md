@@ -14,7 +14,7 @@ A web application that simplifies training LLMs with your own data for use in Ol
 ## Prerequisites
 
 - **Git** (automatically installed if missing)
-- **Python 3.13** or newer
+- **Python 3.10** or newer
 - **Node.js 20+** and **npm** (automatically installed if missing)
 - **PowerShell 7+** (optional, for run.ps1)
 

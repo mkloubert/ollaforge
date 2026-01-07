@@ -22,7 +22,7 @@ set -e
 # =============================================================================
 
 REQUIRED_PYTHON_MAJOR=3
-REQUIRED_PYTHON_MINOR=13
+REQUIRED_PYTHON_MINOR=10
 REQUIRED_NODE_MAJOR=20
 FALLBACK_NODE_VERSION="20.18.1"
 NODE_RELEASE_INDEX_URL="https://nodejs.org/download/release/index.json"

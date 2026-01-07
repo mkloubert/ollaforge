@@ -24,7 +24,7 @@ $ErrorActionPreference = "Stop"
 # =============================================================================
 
 $Script:RequiredPythonMajor = 3
-$Script:RequiredPythonMinor = 13
+$Script:RequiredPythonMinor = 10
 $Script:RequiredNodeMajor = 20
 $Script:FallbackNodeVersion = "20.18.1"
 $Script:NodeReleaseIndexUrl = "https://nodejs.org/download/release/index.json"
