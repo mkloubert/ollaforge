@@ -57,6 +57,30 @@ const de: TranslationSchema = {
       disconnected: "Nicht verbunden",
       checking: "Prüfe...",
     },
+    huggingface: {
+      status: {
+        loggedIn: "Angemeldet als {{username}}",
+        loggedOut: "Nicht angemeldet",
+        checking: "Prüfe...",
+      },
+      changeToken: "Token ändern",
+      login: {
+        title: "Hugging Face Login",
+        description:
+          "Gib deinen Hugging Face Access Token ein, um auf geschützte Modelle zuzugreifen.",
+        tokenLabel: "Access Token",
+        tokenPlaceholder: "hf_...",
+        help: "Du benötigst einen Hugging Face Access Token, um geschützte Modelle herunterzuladen.",
+        getToken: "Token hier holen",
+        submit: "Anmelden",
+        submitting: "Melde an...",
+        success: "Erfolgreich angemeldet!",
+      },
+      errors: {
+        loginFailed: "Anmeldung fehlgeschlagen. Bitte überprüfe deinen Token.",
+        invalidToken: "Ungültiges Token-Format. Token muss mit 'hf_' beginnen.",
+      },
+    },
     projects: {
       title: "Projekte",
       empty: "Noch keine Projekte",
@@ -185,6 +209,9 @@ const de: TranslationSchema = {
       ERR_TRAINING_4007: "Modell konnte nicht exportiert werden.",
       ERR_TRAINING_4008: "Training wurde abgebrochen.",
       ERR_TRAINING_4009: "llama.cpp wurde nicht gefunden. Bitte installiere es zuerst.",
+      ERR_HF_5001: "Nicht bei Hugging Face angemeldet.",
+      ERR_HF_5002: "Hugging Face Anmeldung fehlgeschlagen.",
+      ERR_HF_5003: "Ungültiger Hugging Face Token.",
       unknown: "Ein unerwarteter Fehler ist aufgetreten.",
     },
   },

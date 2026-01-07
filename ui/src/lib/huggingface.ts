@@ -14,8 +14,25 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-export * from "./dataFile";
-export * from "./huggingface";
-export * from "./model";
-export * from "./project";
-export * from "./training";
+import api from "./api";
+import type {
+  HuggingFaceLoginRequest,
+  HuggingFaceLoginResponse,
+  HuggingFaceStatus,
+} from "@/types";
+
+export async function getHuggingFaceStatus(): Promise<HuggingFaceStatus> {
+  const response = await api.get<HuggingFaceStatus>("/api/huggingface/status");
+  return response.data;
+}
+
+export async function loginToHuggingFace(
+  token: string
+): Promise<HuggingFaceLoginResponse> {
+  const request: HuggingFaceLoginRequest = { token };
+  const response = await api.post<HuggingFaceLoginResponse>(
+    "/api/huggingface/login",
+    request
+  );
+  return response.data;
+}

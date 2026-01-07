@@ -31,6 +31,7 @@ from error_codes import ErrorCode
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
 from models.training import (
     DataFileStatus,
     DeviceType,
@@ -590,7 +591,7 @@ class TrainingService:
             logger.info(f"[{job.job_id}] {filename}: Loaded {loaded_in_file} rows")
 
     def _load_model(self, job, device, torch, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, prepare_model_for_kbit_training):
-        """Load model and tokenizer."""
+        """Load model and tokenizer. Uses HF_TOKEN from environment if set."""
         job.set_task_progress("load_model", 10)
 
         tokenizer = AutoTokenizer.from_pretrained(job.model_name)
@@ -852,7 +853,7 @@ class TrainingService:
         return final_model_path
 
     def _merge_lora(self, job: TrainingJob, adapter_path: Path, torch) -> tuple[Path, Path]:
-        """Merge LoRA adapter with base model."""
+        """Merge LoRA adapter with base model. Uses HF_TOKEN from environment if set."""
         from peft import PeftModel
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -861,7 +862,7 @@ class TrainingService:
         output_dir = job.project_path / "output" / "ollama"
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Load base model
+        # Load base model (uses HF_TOKEN from environment automatically)
         logger.info(f"[{job.job_id}] Loading base model for merge: {job.model_name}")
         base_model = AutoModelForCausalLM.from_pretrained(
             job.model_name,

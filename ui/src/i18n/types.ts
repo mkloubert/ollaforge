@@ -55,6 +55,29 @@ export interface TranslationSchema {
       disconnected: string;
       checking: string;
     };
+    huggingface: {
+      status: {
+        loggedIn: string;
+        loggedOut: string;
+        checking: string;
+      };
+      changeToken: string;
+      login: {
+        title: string;
+        description: string;
+        tokenLabel: string;
+        tokenPlaceholder: string;
+        help: string;
+        getToken: string;
+        submit: string;
+        submitting: string;
+        success: string;
+      };
+      errors: {
+        loginFailed: string;
+        invalidToken: string;
+      };
+    };
     projects: {
       title: string;
       empty: string;
@@ -182,6 +205,9 @@ export interface TranslationSchema {
       ERR_TRAINING_4007: string;
       ERR_TRAINING_4008: string;
       ERR_TRAINING_4009: string;
+      ERR_HF_5001: string;
+      ERR_HF_5002: string;
+      ERR_HF_5003: string;
       unknown: string;
     };
   };

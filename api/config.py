@@ -92,6 +92,11 @@ class Config:
         return self._projects_dir
 
     @property
+    def hf_token_file(self) -> Path:
+        """Get the path to the Hugging Face token file."""
+        return self.ollaforge_dir / "hf_token"
+
+    @property
     def host(self) -> str:
         """Get the host to bind the server to."""
         return self._args.host
