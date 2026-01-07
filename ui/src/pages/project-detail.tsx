@@ -14,11 +14,10 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   AlertTriangle,
-  ArrowLeft,
   Check,
   Circle,
   FileText,
@@ -26,9 +25,11 @@ import {
   Home,
   Loader2,
   Play,
+  Rocket,
+  Package,
   SkipForward,
   Sparkles,
-  Square,
+  StopCircle,
   Trash2,
   Upload,
   XCircle,
@@ -83,6 +84,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useDataFiles } from "@/hooks/useDataFiles";
 import { useModels } from "@/hooks/useModels";
+import { useOllama } from "@/hooks/useOllama";
 import { useProject } from "@/hooks/useProject";
 import { useTraining } from "@/hooks/useTraining";
 import { updateProject } from "@/lib/projects";
@@ -190,6 +192,14 @@ export function ProjectDetailPage() {
     cancel: cancelTraining,
     clearError,
   } = useTraining(slug);
+  const {
+    modelExists: ollamaModelExists,
+    isCreating: isCreatingInOllama,
+    isRunning: isRunningInOllama,
+    checkExists: checkOllamaExists,
+    create: createInOllama,
+    run: runInOllama,
+  } = useOllama(slug);
 
   // Local overrides for model and target name (null = use project value)
   const [selectedModelOverride, setSelectedModelOverride] = useState<string | null>(null);
@@ -384,17 +394,51 @@ export function ProjectDetailPage() {
   );
 
   const handleStartTraining = useCallback(async () => {
-    if (!canStartTraining) return;
+    if (!canStartTraining || !project || !slug) return;
+
+    // Save current model before starting training
+    try {
+      await updateProject(slug, {
+        name: project.name,
+        description: project.description,
+        model: effectiveSelectedModel,
+        target_name: effectiveTargetName || null,
+      });
+    } catch {
+      // Continue with training even if save fails
+    }
 
     await startTraining({
       model_name: effectiveSelectedModel,
       data_files: files.map((f) => f.filename),
     });
-  }, [canStartTraining, startTraining, effectiveSelectedModel, files]);
+  }, [canStartTraining, startTraining, effectiveSelectedModel, effectiveTargetName, files, project, slug]);
 
   const handleCancelTraining = useCallback(async () => {
     await cancelTraining();
   }, [cancelTraining]);
+
+  const handleCreateInOllama = useCallback(async () => {
+    const success = await createInOllama();
+    if (success) {
+      await checkOllamaExists();
+    }
+  }, [createInOllama, checkOllamaExists]);
+
+  const handleRunInOllama = useCallback(async () => {
+    await runInOllama();
+  }, [runInOllama]);
+
+  // Check Ollama status after successful training
+  const prevTrainingStatusRef = useRef(trainingStatus);
+  useEffect(() => {
+    if (prevTrainingStatusRef.current !== trainingStatus) {
+      if (trainingStatus === "completed") {
+        checkOllamaExists();
+      }
+      prevTrainingStatusRef.current = trainingStatus;
+    }
+  }, [trainingStatus, checkOllamaExists]);
 
   if (isLoading) {
     return (
@@ -485,17 +529,6 @@ export function ProjectDetailPage() {
             </BreadcrumbList>
           </Breadcrumb>
 
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/")}
-              className="w-fit"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              {t("project.backToProjects")}
-            </Button>
-          </div>
         </div>
 
         {/* Project Title Card */}
@@ -716,29 +749,91 @@ export function ProjectDetailPage() {
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">
-                    {t("project.status")}
+                    {t("training.title")}
                   </CardTitle>
-                  {/* Create/Cancel Button */}
-                  {isTrainingActive || isStarting ? (
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={handleCancelTraining}
-                      disabled={isStarting}
-                    >
-                      <Square className="mr-2 h-4 w-4" />
-                      {t("training.cancelButton")}
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      onClick={handleStartTraining}
-                      disabled={!canStartTraining}
-                    >
-                      <Play className="mr-2 h-4 w-4" />
-                      {t("training.startButton")}
-                    </Button>
-                  )}
+                  <TooltipProvider>
+                    <div className="flex items-center gap-2">
+                      {/* Run in Ollama Button - visible when model exists in Ollama */}
+                      {ollamaModelExists && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              onClick={handleRunInOllama}
+                              disabled={isRunningInOllama}
+                            >
+                              {isRunningInOllama ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Play className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{t("ollama.runButton")}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+
+                      {/* Create in Ollama Button - visible after successful training */}
+                      {trainingStatus === "completed" && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              onClick={handleCreateInOllama}
+                              disabled={isCreatingInOllama}
+                            >
+                              {isCreatingInOllama ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Package className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{t("ollama.createButton")}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+
+                      {/* Create/Cancel Button */}
+                      {isTrainingActive || isStarting ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              onClick={handleCancelTraining}
+                              disabled={isStarting}
+                            >
+                              <StopCircle className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{t("training.cancelButton")}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="icon"
+                              onClick={handleStartTraining}
+                              disabled={!canStartTraining}
+                            >
+                              <Rocket className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{t("training.startButton")}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </div>
+                  </TooltipProvider>
                 </div>
               </CardHeader>
               <CardContent className="flex flex-col gap-4 flex-1">

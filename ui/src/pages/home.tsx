@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { useState } from "react";
-import { AlertCircle, FolderOpen, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, FolderOpen, Home, Pencil, Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 
@@ -23,6 +23,13 @@ import { CreateProjectDialog } from "@/components/create-project-dialog";
 import { DeleteProjectDialog } from "@/components/delete-project-dialog";
 import { EditProjectDialog } from "@/components/edit-project-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -88,21 +95,31 @@ export function HomePage() {
   return (
     <div className="container py-8">
       <div className="flex flex-col gap-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              {t("projects.title")}
-            </h1>
+        {/* Header */}
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <Home className="h-4 w-4" />
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>{t("nav.projects")}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon" onClick={() => setIsCreateDialogOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  <span className="sr-only">{t("projects.createNew")}</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("projects.createNew")}</TooltipContent>
+            </Tooltip>
           </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button size="icon" onClick={() => setIsCreateDialogOpen(true)}>
-                <Plus className="h-4 w-4" />
-                <span className="sr-only">{t("projects.createNew")}</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t("projects.createNew")}</TooltipContent>
-          </Tooltip>
         </div>
 
         {isLoading ? (

@@ -30,6 +30,7 @@ export interface TranslationSchema {
       optional: string;
       edit: string;
       ok: string;
+      dismiss: string;
     };
     app: {
       title: string;
@@ -181,6 +182,14 @@ export interface TranslationSchema {
       completedDescription: string;
       cancelled: string;
     };
+    ollama: {
+      title: string;
+      createButton: string;
+      runButton: string;
+      modelName: string;
+      creating: string;
+      running: string;
+    };
     errors: {
       ERR_PROJECT_1001: string;
       ERR_PROJECT_1002: string;
@@ -208,6 +217,13 @@ export interface TranslationSchema {
       ERR_HF_5001: string;
       ERR_HF_5002: string;
       ERR_HF_5003: string;
+      ERR_OLLAMA_6001: string;
+      ERR_OLLAMA_6002: string;
+      ERR_OLLAMA_6003: string;
+      ERR_OLLAMA_6004: string;
+      ERR_OLLAMA_6005: string;
+      ERR_OLLAMA_6006: string;
+      ERR_OLLAMA_6007: string;
       unknown: string;
     };
   };

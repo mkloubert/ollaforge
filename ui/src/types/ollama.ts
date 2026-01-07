@@ -14,9 +14,31 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-export * from "./dataFile";
-export * from "./huggingface";
-export * from "./model";
-export * from "./ollama";
-export * from "./project";
-export * from "./training";
+export interface OllamaModel {
+  name: string;
+  size: string | null;
+  modified_at: string | null;
+}
+
+export interface OllamaModelsResponse {
+  models: OllamaModel[];
+}
+
+export interface OllamaCreateRequest {
+  target_name?: string | null;
+}
+
+export interface OllamaCreateResponse {
+  success: boolean;
+  model_name: string;
+}
+
+export interface OllamaRunResponse {
+  success: boolean;
+  model_name: string;
+}
+
+export interface OllamaModelExistsResponse {
+  exists: boolean;
+  model_name: string;
+}
