@@ -22,7 +22,6 @@ from pathlib import Path
 import aiofiles
 from fastapi import APIRouter, HTTPException, UploadFile, status
 
-from config import get_config
 from error_codes import ErrorCode
 from models.data_file import (
     DataFileContentResponse,
@@ -31,36 +30,13 @@ from models.data_file import (
     UploadDataFileResponse,
     format_file_size,
 )
+from utils.project_utils import get_project_data_dir, validate_project_exists
 
 router = APIRouter(prefix="/api/projects", tags=["data-files"])
 
 ALLOWED_EXTENSIONS = {".jsonl"}
 CHUNK_SIZE = 64 * 1024  # 64 KB chunks for streaming
 MAX_PREVIEW_ROWS = 100  # Maximum rows to return for preview
-
-
-def get_project_data_dir(slug: str) -> Path:
-    """Get the data directory for a project."""
-    config = get_config()
-    return config.projects_dir / slug / "data"
-
-
-def validate_project_exists(slug: str) -> Path:
-    """
-    Validate that the project exists and return its path.
-    Raises HTTPException if project not found.
-    """
-    config = get_config()
-    project_dir = config.projects_dir / slug
-    project_file = project_dir / "project.json"
-
-    if not project_dir.exists() or not project_dir.is_dir() or not project_file.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error_code": ErrorCode.PROJECT_NOT_FOUND},
-        )
-
-    return project_dir
 
 
 def sanitize_filename(filename: str) -> str:

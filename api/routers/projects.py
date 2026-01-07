@@ -15,9 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import json
-import re
 import shutil
-import unicodedata
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, status
@@ -36,102 +34,15 @@ from models.project import (
     UpdateProjectRequest,
     UpdateProjectResponse,
 )
+from utils.config_parsers import (
+    parse_lora_config,
+    parse_modelfile_config,
+    parse_quantization_config,
+    parse_training_config,
+)
+from utils.project_utils import read_project_json, slugify
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
-
-
-def slugify(text: str) -> str:
-    """
-    Convert text to a URL-friendly slug.
-    - Normalize unicode characters to ASCII
-    - Convert to lowercase
-    - Replace spaces and special characters with hyphens
-    - Remove consecutive hyphens
-    """
-    # Normalize unicode characters (e.g., ä -> a, ü -> u)
-    text = unicodedata.normalize("NFKD", text)
-    text = text.encode("ascii", "ignore").decode("ascii")
-
-    # Convert to lowercase
-    text = text.lower()
-
-    # Replace any non-alphanumeric character with hyphen
-    text = re.sub(r"[^a-z0-9]+", "-", text)
-
-    # Remove leading/trailing hyphens and collapse multiple hyphens
-    text = re.sub(r"-+", "-", text).strip("-")
-
-    return text
-
-
-def read_project_json(project_dir: Path) -> dict | None:
-    """
-    Read and validate project.json from a project directory.
-    Returns None if the file doesn't exist or is invalid.
-    """
-    project_file = project_dir / "project.json"
-
-    if not project_file.exists():
-        return None
-
-    try:
-        with open(project_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        # Validate required fields
-        if not isinstance(data, dict) or "name" not in data:
-            return None
-
-        if not isinstance(data["name"], str) or not data["name"].strip():
-            return None
-
-        return data
-    except (json.JSONDecodeError, IOError):
-        return None
-
-
-def parse_training_config(data: dict) -> TrainingConfig | None:
-    """Parse training configuration from project.json data."""
-    config_data = data.get("trainingConfig")
-    if not config_data or not isinstance(config_data, dict):
-        return None
-    try:
-        return TrainingConfig(**config_data)
-    except (TypeError, ValueError):
-        return None
-
-
-def parse_lora_config(data: dict) -> ProjectLoraConfig | None:
-    """Parse LoRA configuration from project.json data."""
-    config_data = data.get("loraConfig")
-    if not config_data or not isinstance(config_data, dict):
-        return None
-    try:
-        return ProjectLoraConfig(**config_data)
-    except (TypeError, ValueError):
-        return None
-
-
-def parse_quantization_config(data: dict) -> QuantizationConfig | None:
-    """Parse quantization configuration from project.json data."""
-    config_data = data.get("quantizationConfig")
-    if not config_data or not isinstance(config_data, dict):
-        return None
-    try:
-        return QuantizationConfig(**config_data)
-    except (TypeError, ValueError):
-        return None
-
-
-def parse_modelfile_config(data: dict) -> ModelfileConfig | None:
-    """Parse Ollama Modelfile configuration from project.json data."""
-    config_data = data.get("modelfileConfig")
-    if not config_data or not isinstance(config_data, dict):
-        return None
-    try:
-        return ModelfileConfig(**config_data)
-    except (TypeError, ValueError):
-        return None
 
 
 async def get_all_projects() -> list[ProjectInfo]:

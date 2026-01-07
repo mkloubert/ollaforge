@@ -15,24 +15,13 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import asyncio
-import json
 import logging
 import subprocess
 import sys
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, status
 
-from config import get_config
 from error_codes import ErrorCode
-from models.project import (
-    ModelfileConfig,
-    ProjectLoraConfig,
-    QuantizationConfig,
-    TrainingConfig,
-)
-
-logger = logging.getLogger(__name__)
 from models.training import (
     StartTrainingRequest,
     StartTrainingResponse,
@@ -41,75 +30,12 @@ from models.training import (
     TrainingStatusResponse,
 )
 from services.training_service import training_manager
+from utils.config_parsers import load_project_configs
+from utils.project_utils import validate_project_exists
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/projects", tags=["training"])
-
-
-def load_project_configs(project_dir: Path) -> tuple[TrainingConfig | None, ProjectLoraConfig | None, QuantizationConfig | None, ModelfileConfig | None]:
-    """Load training configurations from project.json."""
-    project_file = project_dir / "project.json"
-
-    if not project_file.exists():
-        return None, None, None, None
-
-    try:
-        with open(project_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, IOError):
-        return None, None, None, None
-
-    training_config = None
-    lora_config = None
-    quantization_config = None
-    modelfile_config = None
-
-    # Parse training config
-    if "trainingConfig" in data and isinstance(data["trainingConfig"], dict):
-        try:
-            training_config = TrainingConfig(**data["trainingConfig"])
-        except (TypeError, ValueError):
-            pass
-
-    # Parse LoRA config
-    if "loraConfig" in data and isinstance(data["loraConfig"], dict):
-        try:
-            lora_config = ProjectLoraConfig(**data["loraConfig"])
-        except (TypeError, ValueError):
-            pass
-
-    # Parse quantization config
-    if "quantizationConfig" in data and isinstance(data["quantizationConfig"], dict):
-        try:
-            quantization_config = QuantizationConfig(**data["quantizationConfig"])
-        except (TypeError, ValueError):
-            pass
-
-    # Parse modelfile config
-    if "modelfileConfig" in data and isinstance(data["modelfileConfig"], dict):
-        try:
-            modelfile_config = ModelfileConfig(**data["modelfileConfig"])
-        except (TypeError, ValueError):
-            pass
-
-    return training_config, lora_config, quantization_config, modelfile_config
-
-
-def validate_project_exists(slug: str) -> Path:
-    """
-    Validate that the project exists and return its path.
-    Raises HTTPException if project not found.
-    """
-    config = get_config()
-    project_dir = config.projects_dir / slug
-    project_file = project_dir / "project.json"
-
-    if not project_dir.exists() or not project_dir.is_dir() or not project_file.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error_code": ErrorCode.PROJECT_NOT_FOUND},
-        )
-
-    return project_dir
 
 
 def generate_job_id() -> str:

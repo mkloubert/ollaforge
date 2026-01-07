@@ -4,3 +4,4 @@ venv/
 /.node/
 /.llama.cpp/
 /.prototype/
+.testvenv/

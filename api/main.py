@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import argparse
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -93,7 +94,6 @@ def create_app() -> FastAPI:
 
 # Initialize config with empty args for module import (uvicorn direct import)
 # Will be overridden when run.py is used with CLI args
-import argparse
 init_config(argparse.Namespace(projects=None, host="0.0.0.0", port=23979))
 
 app = create_app()

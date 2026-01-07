@@ -20,7 +20,6 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, status
 
-from config import get_config
 from error_codes import ErrorCode
 from models.ollama import (
     OllamaCreateRequest,
@@ -30,25 +29,11 @@ from models.ollama import (
     OllamaRunResponse,
 )
 from services.ollama_service import OllamaServiceError, ollama_service
+from utils.project_utils import validate_project_exists
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["ollama"])
-
-
-def get_project_path(slug: str) -> Path:
-    """Get project directory path and validate it exists."""
-    config = get_config()
-    project_dir = config.projects_dir / slug
-    project_file = project_dir / "project.json"
-
-    if not project_dir.exists() or not project_dir.is_dir() or not project_file.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error_code": ErrorCode.PROJECT_NOT_FOUND},
-        )
-
-    return project_dir
 
 
 def get_target_name_for_project(project_dir: Path, override: str | None = None) -> str:
@@ -145,7 +130,7 @@ async def list_ollama_models() -> OllamaModelsResponse:
 )
 async def check_model_exists(slug: str) -> OllamaModelExistsResponse:
     """Check if the project's model exists in Ollama."""
-    project_dir = get_project_path(slug)
+    project_dir = validate_project_exists(slug)
     target_name = get_target_name_for_project(project_dir)
 
     try:
@@ -169,7 +154,7 @@ async def create_ollama_model(
     request: OllamaCreateRequest | None = None,
 ) -> OllamaCreateResponse:
     """Create the model in Ollama."""
-    project_dir = get_project_path(slug)
+    project_dir = validate_project_exists(slug)
     target_name = get_target_name_for_project(
         project_dir,
         request.target_name if request else None
@@ -201,7 +186,7 @@ async def create_ollama_model(
 )
 async def run_ollama_model(slug: str) -> OllamaRunResponse:
     """Open terminal and run the model."""
-    project_dir = get_project_path(slug)
+    project_dir = validate_project_exists(slug)
     target_name = get_target_name_for_project(project_dir)
 
     # Verify model exists in Ollama first
