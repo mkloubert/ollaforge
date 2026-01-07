@@ -18,33 +18,18 @@ A web application that simplifies training LLMs with your own data for use in Ol
 - **Node.js 20+** and **npm** (automatically installed if missing)
 - **PowerShell 7+** (optional, for run.ps1)
 
-## Project Structure
-
-```
-/workspace
-├── .llama.cpp/          # llama.cpp repository (auto-cloned)
-├── api/                 # FastAPI backend
-│   ├── main.py          # Main application with CORS
-│   └── routers/         # API route handlers
-│       └── health.py    # Health check endpoint
-├── ui/                  # React frontend (Vite + TypeScript)
-│   ├── src/
-│   │   ├── App.tsx      # Main app component
-│   │   ├── hooks/       # Custom React hooks
-│   │   └── lib/         # Utilities and API client
-│   └── package.json
-├── run.py               # Central start script
-├── run.sh               # Shell script for Unix systems
-├── run.ps1              # PowerShell script (cross-platform)
-└── requirements.txt     # Python dependencies
-```
-
 ## Quick Start
 
 ### Using Shell Script (macOS, Linux, BSD)
 
 ```bash
 ./run.sh
+```
+
+### Using Windows Command Script (Windows)
+
+```batch
+run.cmd
 ```
 
 ### Using PowerShell (Windows, macOS, Linux)
@@ -90,7 +75,7 @@ If a default port is in use, the application automatically finds an available po
 
 ## Automatic Dependency Installation
 
-The setup scripts (`run.sh` and `run.ps1`) automatically detect and install missing dependencies.
+The setup scripts (`run.sh`, `run.ps1`, and `run.cmd`) automatically detect and install missing dependencies.
 
 ### Git
 
@@ -166,7 +151,29 @@ python run.py --no-open --ui-port 8080 --api-port 8081
 
 ## Development
 
-### Backend
+## Project Structure
+
+```
+/workspace
+├── .llama.cpp/          # llama.cpp repository (auto-cloned)
+├── api/                 # FastAPI backend
+│   ├── main.py          # Main application with CORS
+│   └── routers/         # API route handlers
+│       └── health.py    # Health check endpoint
+├── ui/                  # React frontend (Vite + TypeScript)
+│   ├── src/
+│   │   ├── App.tsx      # Main app component
+│   │   ├── hooks/       # Custom React hooks
+│   │   └── lib/         # Utilities and API client
+│   └── package.json
+├── run.py               # Central start script
+├── run.sh               # Shell script for Unix systems
+├── run.ps1              # PowerShell script (cross-platform)
+├── run.cmd              # Windows command script
+└── requirements.txt     # Python dependencies
+```
+
+#### Backend
 
 The backend uses FastAPI with uvicorn. During development, it runs with auto-reload enabled.
 
