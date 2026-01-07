@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # OllaForge - A web application that simplifies training LLMs with your own data for use in Ollama.
 # Copyright (C) 2026  Marcel Joachim Kloubert (marcel@kloubert.dev)
 #
