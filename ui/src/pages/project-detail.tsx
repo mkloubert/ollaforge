@@ -100,7 +100,16 @@ import { useOllama } from "@/hooks/useOllama";
 import { useProject } from "@/hooks/useProject";
 import { useTraining } from "@/hooks/useTraining";
 import { updateProject } from "@/lib/projects";
-import type { DataFileStatus, LoraConfig, Model, QuantizationConfig, TaskStatus, TrainingConfig, TrainingStatus, TrainingTask } from "@/types";
+import {
+  safeParseFloat,
+  safeParseInt,
+  validateLoraConfig,
+  validateModelfileConfig,
+  validateQuantizationConfig,
+  validateTrainingConfig,
+  type ValidationResult,
+} from "@/lib/validation";
+import type { DataFileStatus, LoraConfig, Model, ModelfileConfig, QuantizationConfig, TaskStatus, TrainingConfig, TrainingStatus, TrainingTask } from "@/types";
 
 function TaskStatusIcon({ status }: { status: TaskStatus }) {
   switch (status) {
@@ -225,10 +234,13 @@ export function ProjectDetailPage() {
   const [trainingConfigOverride, setTrainingConfigOverride] = useState<TrainingConfig | null>(null);
   const [loraConfigOverride, setLoraConfigOverride] = useState<LoraConfig | null>(null);
   const [quantizationConfigOverride, setQuantizationConfigOverride] = useState<QuantizationConfig | null>(null);
+  const [modelfileConfigOverride, setModelfileConfigOverride] = useState<ModelfileConfig | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(true);
   const [isTrainingParamsOpen, setIsTrainingParamsOpen] = useState(false);
   const [isLoraParamsOpen, setIsLoraParamsOpen] = useState(false);
   const [isQuantizationParamsOpen, setIsQuantizationParamsOpen] = useState(false);
+  const [isModelfileParamsOpen, setIsModelfileParamsOpen] = useState(false);
 
   // Documentation links (configurable via environment variables)
   const docLinks = useMemo(() => ({
@@ -312,9 +324,42 @@ export function ProjectDetailPage() {
     return { ...projectConfig, ...overrideConfig };
   }, [project, quantizationConfigOverride]);
 
+  // Effective Modelfile config: local override > project value
+  const effectiveModelfileConfig = useMemo((): ModelfileConfig => {
+    const projectConfig = project?.modelfile_config || {};
+    const overrideConfig = modelfileConfigOverride || {};
+    return { ...projectConfig, ...overrideConfig };
+  }, [project, modelfileConfigOverride]);
+
+  // Helper to format validation error messages
+  const formatValidationError = useCallback(
+    (result: ValidationResult): string | undefined => {
+      if (result.valid || !result.errorKey) return undefined;
+      return t(result.errorKey, result.errorParams);
+    },
+    [t]
+  );
+
   // Handle training config change and persist to project
   const handleTrainingConfigChange = useCallback(
     async <K extends keyof TrainingConfig>(key: K, value: TrainingConfig[K]) => {
+      // Clear previous error for this field
+      setValidationErrors((prev) => {
+        const next = { ...prev };
+        delete next[`training.${key}`];
+        return next;
+      });
+
+      // Validate the value
+      const validation = validateTrainingConfig(String(key), value);
+      if (!validation.valid) {
+        const errorMsg = formatValidationError(validation);
+        if (errorMsg) {
+          setValidationErrors((prev) => ({ ...prev, [`training.${key}`]: errorMsg }));
+        }
+        return; // Don't save invalid values
+      }
+
       const newConfig = { ...effectiveTrainingConfig, [key]: value };
       setTrainingConfigOverride(newConfig);
 
@@ -335,12 +380,29 @@ export function ProjectDetailPage() {
         }
       }
     },
-    [effectiveTrainingConfig, effectiveSelectedModel, effectiveTargetName, project, slug]
+    [effectiveTrainingConfig, effectiveSelectedModel, effectiveTargetName, project, slug, formatValidationError]
   );
 
   // Handle LoRA config change and persist to project
   const handleLoraConfigChange = useCallback(
     async <K extends keyof LoraConfig>(key: K, value: LoraConfig[K]) => {
+      // Clear previous error for this field
+      setValidationErrors((prev) => {
+        const next = { ...prev };
+        delete next[`lora.${key}`];
+        return next;
+      });
+
+      // Validate the value
+      const validation = validateLoraConfig(String(key), value);
+      if (!validation.valid) {
+        const errorMsg = formatValidationError(validation);
+        if (errorMsg) {
+          setValidationErrors((prev) => ({ ...prev, [`lora.${key}`]: errorMsg }));
+        }
+        return; // Don't save invalid values
+      }
+
       const newConfig = { ...effectiveLoraConfig, [key]: value };
       setLoraConfigOverride(newConfig);
 
@@ -361,12 +423,29 @@ export function ProjectDetailPage() {
         }
       }
     },
-    [effectiveLoraConfig, effectiveSelectedModel, effectiveTargetName, project, slug]
+    [effectiveLoraConfig, effectiveSelectedModel, effectiveTargetName, project, slug, formatValidationError]
   );
 
   // Handle Quantization config change and persist to project
   const handleQuantizationConfigChange = useCallback(
     async <K extends keyof QuantizationConfig>(key: K, value: QuantizationConfig[K]) => {
+      // Clear previous error for this field
+      setValidationErrors((prev) => {
+        const next = { ...prev };
+        delete next[`quantization.${key}`];
+        return next;
+      });
+
+      // Validate the value
+      const validation = validateQuantizationConfig(String(key), value);
+      if (!validation.valid) {
+        const errorMsg = formatValidationError(validation);
+        if (errorMsg) {
+          setValidationErrors((prev) => ({ ...prev, [`quantization.${key}`]: errorMsg }));
+        }
+        return; // Don't save invalid values
+      }
+
       const newConfig = { ...effectiveQuantizationConfig, [key]: value };
       setQuantizationConfigOverride(newConfig);
 
@@ -387,12 +466,64 @@ export function ProjectDetailPage() {
         }
       }
     },
-    [effectiveQuantizationConfig, effectiveSelectedModel, effectiveTargetName, project, slug]
+    [effectiveQuantizationConfig, effectiveSelectedModel, effectiveTargetName, project, slug, formatValidationError]
+  );
+
+  // Handle Modelfile config change and persist to project
+  const handleModelfileConfigChange = useCallback(
+    async <K extends keyof ModelfileConfig>(key: K, value: ModelfileConfig[K]) => {
+      // Clear previous error for this field
+      setValidationErrors((prev) => {
+        const next = { ...prev };
+        delete next[`modelfile.${key}`];
+        return next;
+      });
+
+      // Validate the value
+      const validation = validateModelfileConfig(String(key), value);
+      if (!validation.valid) {
+        const errorMsg = formatValidationError(validation);
+        if (errorMsg) {
+          setValidationErrors((prev) => ({ ...prev, [`modelfile.${key}`]: errorMsg }));
+        }
+        return; // Don't save invalid values
+      }
+
+      const newConfig = { ...effectiveModelfileConfig, [key]: value };
+      setModelfileConfigOverride(newConfig);
+
+      // Persist to project
+      if (project && slug) {
+        try {
+          await updateProject(slug, {
+            name: project.name,
+            description: project.description,
+            model: effectiveSelectedModel || null,
+            target_name: effectiveTargetName || null,
+            training_config: project.training_config,
+            lora_config: project.lora_config,
+            quantization_config: project.quantization_config,
+            modelfile_config: newConfig,
+          });
+        } catch {
+          // Silent fail - config is still set locally
+        }
+      }
+    },
+    [effectiveModelfileConfig, effectiveSelectedModel, effectiveTargetName, project, slug, formatValidationError]
   );
 
   // Reset Training config to defaults
   const handleResetTrainingConfig = useCallback(async () => {
     setTrainingConfigOverride({});
+    // Clear training validation errors
+    setValidationErrors((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((key) => {
+        if (key.startsWith("training.")) delete next[key];
+      });
+      return next;
+    });
 
     if (project && slug) {
       try {
@@ -414,6 +545,14 @@ export function ProjectDetailPage() {
   // Reset LoRA config to defaults
   const handleResetLoraConfig = useCallback(async () => {
     setLoraConfigOverride({});
+    // Clear LoRA validation errors
+    setValidationErrors((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((key) => {
+        if (key.startsWith("lora.")) delete next[key];
+      });
+      return next;
+    });
 
     if (project && slug) {
       try {
@@ -435,6 +574,14 @@ export function ProjectDetailPage() {
   // Reset Quantization config to defaults
   const handleResetQuantizationConfig = useCallback(async () => {
     setQuantizationConfigOverride({});
+    // Clear quantization validation errors
+    setValidationErrors((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((key) => {
+        if (key.startsWith("quantization.")) delete next[key];
+      });
+      return next;
+    });
 
     if (project && slug) {
       try {
@@ -446,6 +593,36 @@ export function ProjectDetailPage() {
           training_config: project.training_config,
           lora_config: project.lora_config,
           quantization_config: {},
+        });
+      } catch {
+        // Silent fail
+      }
+    }
+  }, [effectiveSelectedModel, effectiveTargetName, project, slug]);
+
+  // Reset Modelfile config to defaults
+  const handleResetModelfileConfig = useCallback(async () => {
+    setModelfileConfigOverride({});
+    // Clear modelfile validation errors
+    setValidationErrors((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((key) => {
+        if (key.startsWith("modelfile.")) delete next[key];
+      });
+      return next;
+    });
+
+    if (project && slug) {
+      try {
+        await updateProject(slug, {
+          name: project.name,
+          description: project.description,
+          model: effectiveSelectedModel || null,
+          target_name: effectiveTargetName || null,
+          training_config: project.training_config,
+          lora_config: project.lora_config,
+          quantization_config: project.quantization_config,
+          modelfile_config: {},
         });
       } catch {
         // Silent fail
@@ -1058,10 +1235,14 @@ export function ProjectDetailPage() {
                             min={1}
                             max={10}
                             placeholder="3"
+                            className={validationErrors["training.num_train_epochs"] ? "border-red-500" : ""}
                             value={effectiveTrainingConfig.num_train_epochs ?? ""}
-                            onChange={(e) => handleTrainingConfigChange("num_train_epochs", e.target.value ? parseInt(e.target.value) : null)}
+                            onChange={(e) => handleTrainingConfigChange("num_train_epochs", safeParseInt(e.target.value))}
                             disabled={isTrainingActive}
                           />
+                          {validationErrors["training.num_train_epochs"] && (
+                            <p className="text-sm text-red-500">{validationErrors["training.num_train_epochs"]}</p>
+                          )}
                         </div>
 
                         {/* Batch Size */}
@@ -1083,10 +1264,14 @@ export function ProjectDetailPage() {
                             min={1}
                             max={16}
                             placeholder="4 (GPU) / 1 (CPU)"
+                            className={validationErrors["training.per_device_train_batch_size"] ? "border-red-500" : ""}
                             value={effectiveTrainingConfig.per_device_train_batch_size ?? ""}
-                            onChange={(e) => handleTrainingConfigChange("per_device_train_batch_size", e.target.value ? parseInt(e.target.value) : null)}
+                            onChange={(e) => handleTrainingConfigChange("per_device_train_batch_size", safeParseInt(e.target.value))}
                             disabled={isTrainingActive}
                           />
+                          {validationErrors["training.per_device_train_batch_size"] && (
+                            <p className="text-sm text-red-500">{validationErrors["training.per_device_train_batch_size"]}</p>
+                          )}
                         </div>
 
                         {/* Gradient Accumulation */}
@@ -1108,10 +1293,14 @@ export function ProjectDetailPage() {
                             min={1}
                             max={32}
                             placeholder="4"
+                            className={validationErrors["training.gradient_accumulation_steps"] ? "border-red-500" : ""}
                             value={effectiveTrainingConfig.gradient_accumulation_steps ?? ""}
-                            onChange={(e) => handleTrainingConfigChange("gradient_accumulation_steps", e.target.value ? parseInt(e.target.value) : null)}
+                            onChange={(e) => handleTrainingConfigChange("gradient_accumulation_steps", safeParseInt(e.target.value))}
                             disabled={isTrainingActive}
                           />
+                          {validationErrors["training.gradient_accumulation_steps"] && (
+                            <p className="text-sm text-red-500">{validationErrors["training.gradient_accumulation_steps"]}</p>
+                          )}
                         </div>
 
                         {/* Learning Rate */}
@@ -1132,12 +1321,16 @@ export function ProjectDetailPage() {
                             type="number"
                             step="0.0001"
                             min={0.000001}
-                            max={0.01}
+                            max={1}
                             placeholder="0.0002 (GPU) / 0.0003 (CPU)"
+                            className={validationErrors["training.learning_rate"] ? "border-red-500" : ""}
                             value={effectiveTrainingConfig.learning_rate ?? ""}
-                            onChange={(e) => handleTrainingConfigChange("learning_rate", e.target.value ? parseFloat(e.target.value) : null)}
+                            onChange={(e) => handleTrainingConfigChange("learning_rate", safeParseFloat(e.target.value))}
                             disabled={isTrainingActive}
                           />
+                          {validationErrors["training.learning_rate"] && (
+                            <p className="text-sm text-red-500">{validationErrors["training.learning_rate"]}</p>
+                          )}
                         </div>
 
                         {/* Warmup Ratio */}
@@ -1160,10 +1353,14 @@ export function ProjectDetailPage() {
                             min={0}
                             max={1}
                             placeholder="0.1 (GPU) / 0.03 (CPU)"
+                            className={validationErrors["training.warmup_ratio"] ? "border-red-500" : ""}
                             value={effectiveTrainingConfig.warmup_ratio ?? ""}
-                            onChange={(e) => handleTrainingConfigChange("warmup_ratio", e.target.value ? parseFloat(e.target.value) : null)}
+                            onChange={(e) => handleTrainingConfigChange("warmup_ratio", safeParseFloat(e.target.value))}
                             disabled={isTrainingActive}
                           />
+                          {validationErrors["training.warmup_ratio"] && (
+                            <p className="text-sm text-red-500">{validationErrors["training.warmup_ratio"]}</p>
+                          )}
                         </div>
 
                         {/* Max Token Length */}
@@ -1181,7 +1378,7 @@ export function ProjectDetailPage() {
                           </div>
                           <Select
                             value={effectiveTrainingConfig.max_length?.toString() ?? ""}
-                            onValueChange={(value) => handleTrainingConfigChange("max_length", value ? parseInt(value) : null)}
+                            onValueChange={(value) => handleTrainingConfigChange("max_length", safeParseInt(value))}
                             disabled={isTrainingActive}
                           >
                             <SelectTrigger id="max-length">
@@ -1246,6 +1443,233 @@ export function ProjectDetailPage() {
                             </SelectContent>
                           </Select>
                         </div>
+
+                        {/* Weight Decay */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="weight-decay">{t("advancedConfig.trainingParams.weightDecay")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.trainingParams.weightDecayHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Input
+                            id="weight-decay"
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            max={0.2}
+                            placeholder="0.01"
+                            className={validationErrors["training.weight_decay"] ? "border-red-500" : ""}
+                            value={effectiveTrainingConfig.weight_decay ?? ""}
+                            onChange={(e) => handleTrainingConfigChange("weight_decay", safeParseFloat(e.target.value))}
+                            disabled={isTrainingActive}
+                          />
+                          {validationErrors["training.weight_decay"] && (
+                            <p className="text-sm text-red-500">{validationErrors["training.weight_decay"]}</p>
+                          )}
+                        </div>
+
+                        {/* Max Gradient Norm */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="max-grad-norm">{t("advancedConfig.trainingParams.maxGradNorm")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.trainingParams.maxGradNormHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Input
+                            id="max-grad-norm"
+                            type="number"
+                            step="0.1"
+                            min={0.1}
+                            max={2}
+                            placeholder="1.0"
+                            className={validationErrors["training.max_grad_norm"] ? "border-red-500" : ""}
+                            value={effectiveTrainingConfig.max_grad_norm ?? ""}
+                            onChange={(e) => handleTrainingConfigChange("max_grad_norm", safeParseFloat(e.target.value))}
+                            disabled={isTrainingActive}
+                          />
+                          {validationErrors["training.max_grad_norm"] && (
+                            <p className="text-sm text-red-500">{validationErrors["training.max_grad_norm"]}</p>
+                          )}
+                        </div>
+
+                        {/* LR Scheduler */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="lr-scheduler">{t("advancedConfig.trainingParams.lrScheduler")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.trainingParams.lrSchedulerHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Select
+                            value={effectiveTrainingConfig.lr_scheduler_type ?? ""}
+                            onValueChange={(value) => handleTrainingConfigChange("lr_scheduler_type", value || null)}
+                            disabled={isTrainingActive}
+                          >
+                            <SelectTrigger id="lr-scheduler">
+                              <SelectValue placeholder={t("advancedConfig.trainingParams.schedulers.linear")} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="linear">{t("advancedConfig.trainingParams.schedulers.linear")}</SelectItem>
+                              <SelectItem value="cosine">{t("advancedConfig.trainingParams.schedulers.cosine")}</SelectItem>
+                              <SelectItem value="constant">{t("advancedConfig.trainingParams.schedulers.constant")}</SelectItem>
+                              <SelectItem value="polynomial">{t("advancedConfig.trainingParams.schedulers.polynomial")}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* NEFTune Noise Alpha */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="neftune-noise">{t("advancedConfig.trainingParams.neftuneNoise")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.trainingParams.neftuneNoiseHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Input
+                            id="neftune-noise"
+                            type="number"
+                            step="1"
+                            min={0}
+                            max={20}
+                            placeholder="0 (disabled)"
+                            className={validationErrors["training.neftune_noise_alpha"] ? "border-red-500" : ""}
+                            value={effectiveTrainingConfig.neftune_noise_alpha ?? ""}
+                            onChange={(e) => handleTrainingConfigChange("neftune_noise_alpha", safeParseFloat(e.target.value))}
+                            disabled={isTrainingActive}
+                          />
+                          {validationErrors["training.neftune_noise_alpha"] && (
+                            <p className="text-sm text-red-500">{validationErrors["training.neftune_noise_alpha"]}</p>
+                          )}
+                        </div>
+
+                        {/* Seed */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="seed">{t("advancedConfig.trainingParams.seed")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.trainingParams.seedHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Input
+                            id="seed"
+                            type="number"
+                            min={0}
+                            placeholder="42"
+                            className={validationErrors["training.seed"] ? "border-red-500" : ""}
+                            value={effectiveTrainingConfig.seed ?? ""}
+                            onChange={(e) => handleTrainingConfigChange("seed", safeParseInt(e.target.value))}
+                            disabled={isTrainingActive}
+                          />
+                          {validationErrors["training.seed"] && (
+                            <p className="text-sm text-red-500">{validationErrors["training.seed"]}</p>
+                          )}
+                        </div>
+
+                        {/* BF16 */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="bf16">{t("advancedConfig.trainingParams.bf16")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.trainingParams.bf16Help")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Switch
+                            id="bf16"
+                            checked={effectiveTrainingConfig.bf16 ?? false}
+                            onCheckedChange={(checked) => handleTrainingConfigChange("bf16", checked)}
+                            disabled={isTrainingActive}
+                          />
+                        </div>
+
+                        {/* Logging Steps */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="logging-steps">{t("advancedConfig.trainingParams.loggingSteps")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.trainingParams.loggingStepsHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Input
+                            id="logging-steps"
+                            type="number"
+                            min={1}
+                            max={1000}
+                            placeholder="10 (GPU) / 5 (CPU)"
+                            className={validationErrors["training.logging_steps"] ? "border-red-500" : ""}
+                            value={effectiveTrainingConfig.logging_steps ?? ""}
+                            onChange={(e) => handleTrainingConfigChange("logging_steps", safeParseInt(e.target.value))}
+                            disabled={isTrainingActive}
+                          />
+                          {validationErrors["training.logging_steps"] && (
+                            <p className="text-sm text-red-500">{validationErrors["training.logging_steps"]}</p>
+                          )}
+                        </div>
+
+                        {/* Save Strategy */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="save-strategy">{t("advancedConfig.trainingParams.saveStrategy")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.trainingParams.saveStrategyHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Select
+                            value={effectiveTrainingConfig.save_strategy ?? ""}
+                            onValueChange={(value) => handleTrainingConfigChange("save_strategy", value || null)}
+                            disabled={isTrainingActive}
+                          >
+                            <SelectTrigger id="save-strategy">
+                              <SelectValue placeholder={t("advancedConfig.trainingParams.saveStrategies.epoch")} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="no">{t("advancedConfig.trainingParams.saveStrategies.no")}</SelectItem>
+                              <SelectItem value="epoch">{t("advancedConfig.trainingParams.saveStrategies.epoch")}</SelectItem>
+                              <SelectItem value="steps">{t("advancedConfig.trainingParams.saveStrategies.steps")}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </CollapsibleContent>
                     </Collapsible>
 
@@ -1298,10 +1722,14 @@ export function ProjectDetailPage() {
                             min={4}
                             max={256}
                             placeholder="32"
+                            className={validationErrors["lora.r"] ? "border-red-500" : ""}
                             value={effectiveLoraConfig.r ?? ""}
-                            onChange={(e) => handleLoraConfigChange("r", e.target.value ? parseInt(e.target.value) : null)}
+                            onChange={(e) => handleLoraConfigChange("r", safeParseInt(e.target.value))}
                             disabled={isTrainingActive}
                           />
+                          {validationErrors["lora.r"] && (
+                            <p className="text-sm text-red-500">{validationErrors["lora.r"]}</p>
+                          )}
                         </div>
 
                         {/* Alpha */}
@@ -1323,10 +1751,14 @@ export function ProjectDetailPage() {
                             min={8}
                             max={512}
                             placeholder="64"
+                            className={validationErrors["lora.lora_alpha"] ? "border-red-500" : ""}
                             value={effectiveLoraConfig.lora_alpha ?? ""}
-                            onChange={(e) => handleLoraConfigChange("lora_alpha", e.target.value ? parseInt(e.target.value) : null)}
+                            onChange={(e) => handleLoraConfigChange("lora_alpha", safeParseInt(e.target.value))}
                             disabled={isTrainingActive}
                           />
+                          {validationErrors["lora.lora_alpha"] && (
+                            <p className="text-sm text-red-500">{validationErrors["lora.lora_alpha"]}</p>
+                          )}
                         </div>
 
                         {/* Dropout */}
@@ -1349,10 +1781,14 @@ export function ProjectDetailPage() {
                             min={0}
                             max={0.5}
                             placeholder="0.05"
+                            className={validationErrors["lora.lora_dropout"] ? "border-red-500" : ""}
                             value={effectiveLoraConfig.lora_dropout ?? ""}
-                            onChange={(e) => handleLoraConfigChange("lora_dropout", e.target.value ? parseFloat(e.target.value) : null)}
+                            onChange={(e) => handleLoraConfigChange("lora_dropout", safeParseFloat(e.target.value))}
                             disabled={isTrainingActive}
                           />
+                          {validationErrors["lora.lora_dropout"] && (
+                            <p className="text-sm text-red-500">{validationErrors["lora.lora_dropout"]}</p>
+                          )}
                         </div>
 
                         {/* Target Modules */}
@@ -1389,6 +1825,118 @@ export function ProjectDetailPage() {
                                   />
                                   <Label htmlFor={`module-${module}`} className="text-sm font-normal cursor-pointer">
                                     {t(`advancedConfig.loraParams.modules.${module}`)}
+                                  </Label>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Bias Training */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="lora-bias">{t("advancedConfig.loraParams.bias")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.loraParams.biasHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Select
+                            value={effectiveLoraConfig.bias ?? ""}
+                            onValueChange={(value) => handleLoraConfigChange("bias", value || null)}
+                            disabled={isTrainingActive}
+                          >
+                            <SelectTrigger id="lora-bias">
+                              <SelectValue placeholder={t("advancedConfig.loraParams.biasOptions.none")} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">{t("advancedConfig.loraParams.biasOptions.none")}</SelectItem>
+                              <SelectItem value="lora_only">{t("advancedConfig.loraParams.biasOptions.lora_only")}</SelectItem>
+                              <SelectItem value="all">{t("advancedConfig.loraParams.biasOptions.all")}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Use RSLoRA */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="use-rslora">{t("advancedConfig.loraParams.useRslora")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.loraParams.useRsloraHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Switch
+                            id="use-rslora"
+                            checked={effectiveLoraConfig.use_rslora ?? false}
+                            onCheckedChange={(checked) => handleLoraConfigChange("use_rslora", checked)}
+                            disabled={isTrainingActive}
+                          />
+                        </div>
+
+                        {/* Use DoRA */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="use-dora">{t("advancedConfig.loraParams.useDora")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.loraParams.useDoraHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Switch
+                            id="use-dora"
+                            checked={effectiveLoraConfig.use_dora ?? false}
+                            onCheckedChange={(checked) => handleLoraConfigChange("use_dora", checked)}
+                            disabled={isTrainingActive}
+                          />
+                        </div>
+
+                        {/* Modules to Save */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label>{t("advancedConfig.loraParams.modulesToSave")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.loraParams.modulesToSaveHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            {(["lm_head", "embed_tokens"] as const).map((saveModule) => {
+                              const currentModules = effectiveLoraConfig.modules_to_save ?? [];
+                              const isChecked = currentModules.includes(saveModule);
+                              return (
+                                <div key={saveModule} className="flex items-center space-x-2">
+                                  <input
+                                    type="checkbox"
+                                    id={`save-module-${saveModule}`}
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      const newModules = e.target.checked
+                                        ? [...currentModules, saveModule]
+                                        : currentModules.filter((m) => m !== saveModule);
+                                      handleLoraConfigChange("modules_to_save", newModules.length > 0 ? newModules : null);
+                                    }}
+                                    disabled={isTrainingActive}
+                                    className="h-4 w-4 rounded border-gray-300"
+                                  />
+                                  <Label htmlFor={`save-module-${saveModule}`} className="text-sm font-normal cursor-pointer">
+                                    {t(`advancedConfig.loraParams.saveModules.${saveModule}`)}
                                   </Label>
                                 </div>
                               );
@@ -1503,6 +2051,35 @@ export function ProjectDetailPage() {
                           />
                         </div>
 
+                        {/* Compute Dtype */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="compute-dtype">{t("advancedConfig.quantizationParams.computeDtype")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.quantizationParams.computeDtypeHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Select
+                            value={effectiveQuantizationConfig.bnb_4bit_compute_dtype ?? ""}
+                            onValueChange={(value) => handleQuantizationConfigChange("bnb_4bit_compute_dtype", value || null)}
+                            disabled={isTrainingActive}
+                          >
+                            <SelectTrigger id="compute-dtype">
+                              <SelectValue placeholder={t("advancedConfig.quantizationParams.computeDtypes.float16")} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="float16">{t("advancedConfig.quantizationParams.computeDtypes.float16")}</SelectItem>
+                              <SelectItem value="bfloat16">{t("advancedConfig.quantizationParams.computeDtypes.bfloat16")}</SelectItem>
+                              <SelectItem value="float32">{t("advancedConfig.quantizationParams.computeDtypes.float32")}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
                         {/* Output Quantization */}
                         <div className="flex flex-col gap-2">
                           <div className="flex items-center gap-2">
@@ -1532,6 +2109,311 @@ export function ProjectDetailPage() {
                               <SelectItem value="auto">{t("advancedConfig.quantizationParams.outputTypes.auto")}</SelectItem>
                             </SelectContent>
                           </Select>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    {/* Ollama Modelfile Configuration Section */}
+                    <Collapsible open={isModelfileParamsOpen} onOpenChange={setIsModelfileParamsOpen}>
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" className="w-full justify-between p-2 h-auto">
+                          <span className="font-medium">{t("advancedConfig.modelfileParams.title")}</span>
+                          <ChevronDown className={`h-4 w-4 transition-transform ${isModelfileParamsOpen ? "rotate-180" : ""}`} />
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pt-4 space-y-4">
+                        {/* Reset Button */}
+                        <div className="flex justify-end">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                                onClick={handleResetModelfileConfig}
+                                disabled={isTrainingActive}
+                              >
+                                <RotateCcw className="h-3 w-3 mr-1" />
+                                {t("advancedConfig.defaults.resetToDefaults")}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{t("advancedConfig.defaults.resetConfirm")}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+
+                        {/* Temperature */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="temperature">{t("advancedConfig.modelfileParams.temperature")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.modelfileParams.temperatureHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Input
+                            id="temperature"
+                            type="number"
+                            min="0"
+                            max="2"
+                            step="0.1"
+                            className={validationErrors["modelfile.temperature"] ? "border-red-500" : ""}
+                            value={effectiveModelfileConfig.temperature ?? 0.7}
+                            onChange={(e) => handleModelfileConfigChange("temperature", safeParseFloat(e.target.value) ?? 0.7)}
+                            disabled={isTrainingActive}
+                          />
+                          {validationErrors["modelfile.temperature"] && (
+                            <p className="text-sm text-red-500">{validationErrors["modelfile.temperature"]}</p>
+                          )}
+                        </div>
+
+                        {/* Top P */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="top-p">{t("advancedConfig.modelfileParams.topP")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.modelfileParams.topPHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Input
+                            id="top-p"
+                            type="number"
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            className={validationErrors["modelfile.top_p"] ? "border-red-500" : ""}
+                            value={effectiveModelfileConfig.top_p ?? 0.9}
+                            onChange={(e) => handleModelfileConfigChange("top_p", safeParseFloat(e.target.value) ?? 0.9)}
+                            disabled={isTrainingActive}
+                          />
+                          {validationErrors["modelfile.top_p"] && (
+                            <p className="text-sm text-red-500">{validationErrors["modelfile.top_p"]}</p>
+                          )}
+                        </div>
+
+                        {/* Top K */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="top-k">{t("advancedConfig.modelfileParams.topK")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.modelfileParams.topKHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Input
+                            id="top-k"
+                            type="number"
+                            min="1"
+                            max="100"
+                            className={validationErrors["modelfile.top_k"] ? "border-red-500" : ""}
+                            value={effectiveModelfileConfig.top_k ?? 40}
+                            onChange={(e) => handleModelfileConfigChange("top_k", safeParseInt(e.target.value) ?? 40)}
+                            disabled={isTrainingActive}
+                          />
+                          {validationErrors["modelfile.top_k"] && (
+                            <p className="text-sm text-red-500">{validationErrors["modelfile.top_k"]}</p>
+                          )}
+                        </div>
+
+                        {/* Repeat Penalty */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="repeat-penalty">{t("advancedConfig.modelfileParams.repeatPenalty")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.modelfileParams.repeatPenaltyHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Input
+                            id="repeat-penalty"
+                            type="number"
+                            min="1"
+                            max="2"
+                            step="0.05"
+                            className={validationErrors["modelfile.repeat_penalty"] ? "border-red-500" : ""}
+                            value={effectiveModelfileConfig.repeat_penalty ?? 1.1}
+                            onChange={(e) => handleModelfileConfigChange("repeat_penalty", safeParseFloat(e.target.value) ?? 1.1)}
+                            disabled={isTrainingActive}
+                          />
+                          {validationErrors["modelfile.repeat_penalty"] && (
+                            <p className="text-sm text-red-500">{validationErrors["modelfile.repeat_penalty"]}</p>
+                          )}
+                        </div>
+
+                        {/* Repeat Last N */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="repeat-last-n">{t("advancedConfig.modelfileParams.repeatLastN")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.modelfileParams.repeatLastNHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Input
+                            id="repeat-last-n"
+                            type="number"
+                            min="0"
+                            max="512"
+                            className={validationErrors["modelfile.repeat_last_n"] ? "border-red-500" : ""}
+                            value={effectiveModelfileConfig.repeat_last_n ?? 64}
+                            onChange={(e) => handleModelfileConfigChange("repeat_last_n", safeParseInt(e.target.value) ?? 64)}
+                            disabled={isTrainingActive}
+                          />
+                          {validationErrors["modelfile.repeat_last_n"] && (
+                            <p className="text-sm text-red-500">{validationErrors["modelfile.repeat_last_n"]}</p>
+                          )}
+                        </div>
+
+                        {/* Context Window Size */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="num-ctx">{t("advancedConfig.modelfileParams.numCtx")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.modelfileParams.numCtxHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <Select
+                            value={String(effectiveModelfileConfig.num_ctx ?? 2048)}
+                            onValueChange={(value) => handleModelfileConfigChange("num_ctx", safeParseInt(value))}
+                            disabled={isTrainingActive}
+                          >
+                            <SelectTrigger id="num-ctx">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="2048">2048</SelectItem>
+                              <SelectItem value="4096">4096</SelectItem>
+                              <SelectItem value="8192">8192</SelectItem>
+                              <SelectItem value="16384">16384</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* System Prompt */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="system-prompt">{t("advancedConfig.modelfileParams.system")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.modelfileParams.systemHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <textarea
+                            id="system-prompt"
+                            className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            placeholder={t("advancedConfig.modelfileParams.systemPlaceholder")}
+                            value={effectiveModelfileConfig.system ?? ""}
+                            onChange={(e) => handleModelfileConfigChange("system", e.target.value || null)}
+                            disabled={isTrainingActive}
+                          />
+                        </div>
+
+                        {/* Stop Sequences */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Label>{t("advancedConfig.modelfileParams.stop")}</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]">
+                                <p>{t("advancedConfig.modelfileParams.stopHelp")}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            {(effectiveModelfileConfig.stop || []).map((seq, index) => (
+                              <span
+                                key={index}
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded-md text-sm"
+                              >
+                                <code className="text-xs">{seq}</code>
+                                <button
+                                  type="button"
+                                  className="text-muted-foreground hover:text-foreground"
+                                  onClick={() => {
+                                    const newStop = (effectiveModelfileConfig.stop || []).filter((_, i) => i !== index);
+                                    handleModelfileConfigChange("stop", newStop.length > 0 ? newStop : null);
+                                  }}
+                                  disabled={isTrainingActive}
+                                >
+                                  <XCircle className="h-3 w-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                          <div className="flex gap-2">
+                            <Input
+                              id="stop-input"
+                              type="text"
+                              placeholder={t("advancedConfig.modelfileParams.stopPlaceholder")}
+                              disabled={isTrainingActive}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  const input = e.currentTarget;
+                                  const value = input.value.trim();
+                                  if (value) {
+                                    const currentStop = effectiveModelfileConfig.stop || [];
+                                    if (!currentStop.includes(value)) {
+                                      handleModelfileConfigChange("stop", [...currentStop, value]);
+                                    }
+                                    input.value = "";
+                                  }
+                                }
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={isTrainingActive}
+                              onClick={() => {
+                                const input = document.getElementById("stop-input") as HTMLInputElement;
+                                const value = input?.value.trim();
+                                if (value) {
+                                  const currentStop = effectiveModelfileConfig.stop || [];
+                                  if (!currentStop.includes(value)) {
+                                    handleModelfileConfigChange("stop", [...currentStop, value]);
+                                  }
+                                  input.value = "";
+                                }
+                              }}
+                            >
+                              {t("advancedConfig.modelfileParams.stopAdd")}
+                            </Button>
+                          </div>
                         </div>
                       </CollapsibleContent>
                     </Collapsible>

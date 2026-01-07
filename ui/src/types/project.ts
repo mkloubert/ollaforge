@@ -23,6 +23,15 @@ export interface TrainingConfig {
   max_length?: number | null;
   fp16?: boolean | null;
   optim?: string | null;
+  // Extended training parameters
+  weight_decay?: number | null;
+  max_grad_norm?: number | null;
+  lr_scheduler_type?: string | null;
+  neftune_noise_alpha?: number | null;
+  seed?: number | null;
+  bf16?: boolean | null;
+  logging_steps?: number | null;
+  save_strategy?: string | null;
 }
 
 export interface LoraConfig {
@@ -30,13 +39,30 @@ export interface LoraConfig {
   lora_alpha?: number | null;
   lora_dropout?: number | null;
   target_modules?: string[] | null;
+  // Advanced LoRA parameters
+  bias?: string | null;
+  use_rslora?: boolean | null;
+  use_dora?: boolean | null;
+  modules_to_save?: string[] | null;
 }
 
 export interface QuantizationConfig {
   load_in_4bit?: boolean | null;
   bnb_4bit_quant_type?: string | null;
   bnb_4bit_use_double_quant?: boolean | null;
+  bnb_4bit_compute_dtype?: string | null;
   output_quantization?: string | null;
+}
+
+export interface ModelfileConfig {
+  temperature?: number | null;
+  top_p?: number | null;
+  top_k?: number | null;
+  stop?: string[] | null;
+  system?: string | null;
+  repeat_penalty?: number | null;
+  repeat_last_n?: number | null;
+  num_ctx?: number | null;
 }
 
 export interface Project {
@@ -49,6 +75,7 @@ export interface Project {
   training_config?: TrainingConfig | null;
   lora_config?: LoraConfig | null;
   quantization_config?: QuantizationConfig | null;
+  modelfile_config?: ModelfileConfig | null;
 }
 
 export interface CreateProjectRequest {
@@ -70,6 +97,7 @@ export interface UpdateProjectRequest {
   training_config?: TrainingConfig | null;
   lora_config?: LoraConfig | null;
   quantization_config?: QuantizationConfig | null;
+  modelfile_config?: ModelfileConfig | null;
 }
 
 export interface UpdateProjectResponse {
@@ -81,6 +109,7 @@ export interface UpdateProjectResponse {
   training_config?: TrainingConfig | null;
   lora_config?: LoraConfig | null;
   quantization_config?: QuantizationConfig | null;
+  modelfile_config?: ModelfileConfig | null;
 }
 
 export interface ApiErrorResponse {

@@ -103,15 +103,27 @@ The Advanced tab in the project settings allows customization of training parame
 | Max Token Length      | Maximum sequence length           | 512              | 512           |
 | FP16                  | Half precision training           | true             | false         |
 | Optimizer             | Weight update algorithm           | paged_adamw_8bit | adamw_torch   |
+| Weight Decay          | L2 regularization                 | 0.01             | 0.01          |
+| Max Gradient Norm     | Gradient clipping threshold       | 1.0              | 1.0           |
+| LR Scheduler          | Learning rate schedule            | linear           | linear        |
+| NEFTune Noise Alpha   | Embedding noise (0=disabled)      | 0                | 0             |
+| Seed                  | Random seed for reproducibility   | 42               | 42            |
+| BF16                  | BFloat16 precision (Ampere+ GPUs) | false            | false         |
+| Logging Steps         | Log metrics every N steps         | 10               | 5             |
+| Save Strategy         | Checkpoint save strategy          | epoch            | epoch         |
 
 #### LoRA Parameters
 
-| Parameter      | Description                     | Default                                |
-| -------------- | ------------------------------- | -------------------------------------- |
-| Rank (r)       | Dimension of low-rank matrices  | 32                                     |
-| Alpha          | Scaling factor for LoRA weights | 64                                     |
-| Dropout        | Dropout probability             | 0.05                                   |
-| Target Modules | Model layers to apply LoRA      | q, k, v, o, gate, up, down projections |
+| Parameter       | Description                           | Default                                |
+| --------------- | ------------------------------------- | -------------------------------------- |
+| Rank (r)        | Dimension of low-rank matrices        | 32                                     |
+| Alpha           | Scaling factor for LoRA weights       | 64                                     |
+| Dropout         | Dropout probability                   | 0.05                                   |
+| Target Modules  | Model layers to apply LoRA            | q, k, v, o, gate, up, down projections |
+| Bias            | Bias training mode                    | none                                   |
+| Use RSLoRA      | Rank-Stabilized LoRA (r >= 64)        | false                                  |
+| Use DoRA        | Weight-Decomposed LoRA (experimental) | false                                  |
+| Modules to Save | Additional modules to train fully     | none                                   |
 
 #### Quantization Parameters (GPU only)
 
@@ -120,7 +132,21 @@ The Advanced tab in the project settings allows customization of training parame
 | Load in 4-bit       | Use 4-bit precision for loading | true    |
 | Quantization Type   | 4-bit quantization algorithm    | NF4     |
 | Double Quantization | Apply secondary quantization    | true    |
+| Compute Dtype       | Dtype for computations          | float16 |
 | Output Quantization | Format for final GGUF model     | Q8_0    |
+
+#### Ollama Modelfile Parameters
+
+| Parameter      | Description                           | Default                        |
+| -------------- | ------------------------------------- | ------------------------------ |
+| Temperature    | Randomness in output (0-2)            | 0.7                            |
+| Top P          | Nucleus sampling threshold (0-1)      | 0.9                            |
+| Top K          | Limit to K most likely tokens (1-100) | 40                             |
+| System Prompt  | Model behavior instructions           | "You are a helpful assistant." |
+| Stop Sequences | Sequences that end generation         | ["### Question:"]              |
+| Repeat Penalty | Penalty for token repetition (1-2)    | 1.1                            |
+| Repeat Last N  | Tokens to check for repetition        | 64                             |
+| Context Size   | Context window size                   | 2048                           |
 
 ## Default Ports
 

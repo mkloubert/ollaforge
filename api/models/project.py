@@ -65,6 +65,49 @@ class TrainingConfig(BaseModel):
         max_length=50,
         description="Optimizer to use (default: paged_adamw_8bit for CUDA, adamw_torch for CPU/MPS)",
     )
+    weight_decay: float | None = Field(
+        None,
+        ge=0.0,
+        le=0.2,
+        description="Weight decay for regularization (default: 0.01)",
+    )
+    max_grad_norm: float | None = Field(
+        None,
+        ge=0.1,
+        le=2.0,
+        description="Maximum gradient norm for clipping (default: 1.0)",
+    )
+    lr_scheduler_type: str | None = Field(
+        None,
+        max_length=30,
+        description="Learning rate scheduler type (default: linear)",
+    )
+    neftune_noise_alpha: float | None = Field(
+        None,
+        ge=0,
+        le=20,
+        description="NEFTune noise alpha for improved training (default: 0/disabled)",
+    )
+    seed: int | None = Field(
+        None,
+        ge=0,
+        description="Random seed for reproducibility (default: 42)",
+    )
+    bf16: bool | None = Field(
+        None,
+        description="Use bfloat16 precision (default: False, only for Ampere+ GPUs)",
+    )
+    logging_steps: int | None = Field(
+        None,
+        ge=1,
+        le=1000,
+        description="Log training metrics every N steps (default: 10 for CUDA, 5 for CPU)",
+    )
+    save_strategy: str | None = Field(
+        None,
+        max_length=10,
+        description="Checkpoint save strategy: no, epoch, steps (default: epoch)",
+    )
 
 
 class ProjectLoraConfig(BaseModel):
@@ -92,6 +135,24 @@ class ProjectLoraConfig(BaseModel):
         None,
         description="List of modules to apply LoRA to (default: q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj)",
     )
+    # Advanced LoRA parameters
+    bias: str | None = Field(
+        None,
+        max_length=10,
+        description="Bias training mode: none, lora_only, or all (default: none)",
+    )
+    use_rslora: bool | None = Field(
+        None,
+        description="Use Rank-Stabilized LoRA for better performance with higher ranks (default: False)",
+    )
+    use_dora: bool | None = Field(
+        None,
+        description="Use Weight-Decomposed Low-Rank Adaptation (experimental) (default: False)",
+    )
+    modules_to_save: list[str] | None = Field(
+        None,
+        description="Additional modules to train fully: lm_head, embed_tokens (default: none)",
+    )
 
 
 class QuantizationConfig(BaseModel):
@@ -110,10 +171,63 @@ class QuantizationConfig(BaseModel):
         None,
         description="Use double quantization for additional memory savings (default: True)",
     )
+    bnb_4bit_compute_dtype: str | None = Field(
+        None,
+        max_length=10,
+        description="Compute dtype for 4-bit quantization: float16, bfloat16, float32 (default: float16)",
+    )
     output_quantization: str | None = Field(
         None,
         max_length=10,
         description="Output GGUF quantization type: f32, f16, bf16, q8_0, auto (default: q8_0)",
+    )
+
+
+class ModelfileConfig(BaseModel):
+    """Configuration for Ollama Modelfile parameters."""
+
+    temperature: float | None = Field(
+        None,
+        ge=0.0,
+        le=2.0,
+        description="Controls randomness in output generation (default: 0.7)",
+    )
+    top_p: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Nucleus sampling threshold (default: 0.9)",
+    )
+    top_k: int | None = Field(
+        None,
+        ge=1,
+        le=100,
+        description="Limits token selection to top K most likely (default: 40)",
+    )
+    stop: list[str] | None = Field(
+        None,
+        description="Stop sequences that end generation (default: ['### Question:'])",
+    )
+    system: str | None = Field(
+        None,
+        max_length=2000,
+        description="System prompt defining model behavior (default: 'You are a helpful assistant.')",
+    )
+    repeat_penalty: float | None = Field(
+        None,
+        ge=1.0,
+        le=2.0,
+        description="Penalty for repeating tokens (default: 1.1)",
+    )
+    repeat_last_n: int | None = Field(
+        None,
+        ge=0,
+        le=512,
+        description="Number of tokens to consider for repeat penalty (default: 64)",
+    )
+    num_ctx: int | None = Field(
+        None,
+        description="Context window size for inference (default: 2048)",
     )
 
 
@@ -140,6 +254,9 @@ class ProjectInfo(BaseModel):
     )
     quantization_config: QuantizationConfig | None = Field(
         None, description="Quantization configuration parameters"
+    )
+    modelfile_config: ModelfileConfig | None = Field(
+        None, description="Ollama Modelfile configuration parameters"
     )
 
 
@@ -202,6 +319,9 @@ class UpdateProjectRequest(BaseModel):
     quantization_config: QuantizationConfig | None = Field(
         None, description="Quantization configuration parameters"
     )
+    modelfile_config: ModelfileConfig | None = Field(
+        None, description="Ollama Modelfile configuration parameters"
+    )
 
 
 class UpdateProjectResponse(BaseModel):
@@ -226,6 +346,9 @@ class UpdateProjectResponse(BaseModel):
     )
     quantization_config: QuantizationConfig | None = Field(
         None, description="Quantization configuration parameters"
+    )
+    modelfile_config: ModelfileConfig | None = Field(
+        None, description="Ollama Modelfile configuration parameters"
     )
 
 

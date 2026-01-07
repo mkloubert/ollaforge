@@ -150,6 +150,34 @@ export interface TranslationSchema {
           adamw_hf: string;
           sgd: string;
         };
+        // Extended training parameters
+        weightDecay: string;
+        weightDecayHelp: string;
+        maxGradNorm: string;
+        maxGradNormHelp: string;
+        lrScheduler: string;
+        lrSchedulerHelp: string;
+        schedulers: {
+          linear: string;
+          cosine: string;
+          constant: string;
+          polynomial: string;
+        };
+        neftuneNoise: string;
+        neftuneNoiseHelp: string;
+        seed: string;
+        seedHelp: string;
+        bf16: string;
+        bf16Help: string;
+        loggingSteps: string;
+        loggingStepsHelp: string;
+        saveStrategy: string;
+        saveStrategyHelp: string;
+        saveStrategies: {
+          no: string;
+          epoch: string;
+          steps: string;
+        };
       };
       defaults: {
         showDefaults: string;
@@ -177,6 +205,24 @@ export interface TranslationSchema {
           up_proj: string;
           down_proj: string;
         };
+        // Advanced LoRA parameters
+        bias: string;
+        biasHelp: string;
+        biasOptions: {
+          none: string;
+          lora_only: string;
+          all: string;
+        };
+        useRslora: string;
+        useRsloraHelp: string;
+        useDora: string;
+        useDoraHelp: string;
+        modulesToSave: string;
+        modulesToSaveHelp: string;
+        saveModules: {
+          lm_head: string;
+          embed_tokens: string;
+        };
       };
       quantizationParams: {
         title: string;
@@ -190,6 +236,13 @@ export interface TranslationSchema {
         };
         doubleQuant: string;
         doubleQuantHelp: string;
+        computeDtype: string;
+        computeDtypeHelp: string;
+        computeDtypes: {
+          float16: string;
+          bfloat16: string;
+          float32: string;
+        };
         outputQuantization: string;
         outputQuantizationHelp: string;
         outputTypes: {
@@ -200,6 +253,28 @@ export interface TranslationSchema {
           auto: string;
         };
         cudaOnly: string;
+      };
+      modelfileParams: {
+        title: string;
+        temperature: string;
+        temperatureHelp: string;
+        topP: string;
+        topPHelp: string;
+        topK: string;
+        topKHelp: string;
+        system: string;
+        systemHelp: string;
+        systemPlaceholder: string;
+        stop: string;
+        stopHelp: string;
+        stopPlaceholder: string;
+        stopAdd: string;
+        repeatPenalty: string;
+        repeatPenaltyHelp: string;
+        repeatLastN: string;
+        repeatLastNHelp: string;
+        numCtx: string;
+        numCtxHelp: string;
       };
     };
     dataFiles: {
@@ -318,6 +393,17 @@ export interface TranslationSchema {
       ERR_OLLAMA_6006: string;
       ERR_OLLAMA_6007: string;
       unknown: string;
+    };
+    validation: {
+      mustBeInteger: string;
+      mustBeNumber: string;
+      mustBeString: string;
+      mustBeBoolean: string;
+      mustBeArray: string;
+      mustBeGreaterThan: string;
+      mustBeAtLeast: string;
+      mustBeAtMost: string;
+      maxLength: string;
     };
   };
 }

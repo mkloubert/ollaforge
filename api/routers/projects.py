@@ -28,6 +28,7 @@ from models.project import (
     CreateProjectRequest,
     CreateProjectResponse,
     ErrorResponse,
+    ModelfileConfig,
     ProjectInfo,
     ProjectLoraConfig,
     QuantizationConfig,
@@ -122,6 +123,17 @@ def parse_quantization_config(data: dict) -> QuantizationConfig | None:
         return None
 
 
+def parse_modelfile_config(data: dict) -> ModelfileConfig | None:
+    """Parse Ollama Modelfile configuration from project.json data."""
+    config_data = data.get("modelfileConfig")
+    if not config_data or not isinstance(config_data, dict):
+        return None
+    try:
+        return ModelfileConfig(**config_data)
+    except (TypeError, ValueError):
+        return None
+
+
 async def get_all_projects() -> list[ProjectInfo]:
     """
     Scan the projects directory and return all valid projects.
@@ -166,6 +178,7 @@ async def get_all_projects() -> list[ProjectInfo]:
                 training_config=parse_training_config(project_data),
                 lora_config=parse_lora_config(project_data),
                 quantization_config=parse_quantization_config(project_data),
+                modelfile_config=parse_modelfile_config(project_data),
             )
         )
 
@@ -323,6 +336,7 @@ async def update_project(slug: str, request: UpdateProjectRequest) -> UpdateProj
     training_config = request.training_config
     lora_config = request.lora_config
     quantization_config = request.quantization_config
+    modelfile_config = request.modelfile_config
 
     # Update project.json
     try:
@@ -350,6 +364,11 @@ async def update_project(slug: str, request: UpdateProjectRequest) -> UpdateProj
             if config_dict:
                 project_data["quantizationConfig"] = config_dict
 
+        if modelfile_config:
+            config_dict = modelfile_config.model_dump(exclude_none=True)
+            if config_dict:
+                project_data["modelfileConfig"] = config_dict
+
         project_file = project_dir / "project.json"
 
         with open(project_file, "w", encoding="utf-8") as f:
@@ -370,6 +389,7 @@ async def update_project(slug: str, request: UpdateProjectRequest) -> UpdateProj
         training_config=training_config,
         lora_config=lora_config,
         quantization_config=quantization_config,
+        modelfile_config=modelfile_config,
     )
 
 

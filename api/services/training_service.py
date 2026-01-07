@@ -33,6 +33,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 from models.project import (
+    ModelfileConfig,
     ProjectLoraConfig,
     QuantizationConfig,
     TrainingConfig,
@@ -59,17 +60,43 @@ DEFAULT_WARMUP_RATIO_CPU = 0.03
 DEFAULT_OPTIM_CUDA = "paged_adamw_8bit"
 DEFAULT_OPTIM_CPU = "adamw_torch"
 
+# Extended training parameters
+DEFAULT_WEIGHT_DECAY = 0.01
+DEFAULT_MAX_GRAD_NORM = 1.0
+DEFAULT_LR_SCHEDULER_TYPE = "linear"
+DEFAULT_NEFTUNE_NOISE_ALPHA = 0  # 0 = disabled
+DEFAULT_SEED = 42
+DEFAULT_LOGGING_STEPS_CUDA = 10
+DEFAULT_LOGGING_STEPS_CPU = 5
+DEFAULT_SAVE_STRATEGY = "epoch"
+
 # Default LoRA parameters
 DEFAULT_LORA_R = 32
 DEFAULT_LORA_ALPHA = 64
 DEFAULT_LORA_DROPOUT = 0.05
 DEFAULT_LORA_TARGET_MODULES = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 
+# Advanced LoRA parameters
+DEFAULT_LORA_BIAS = "none"
+DEFAULT_USE_RSLORA = False
+DEFAULT_USE_DORA = False
+
 # Default quantization parameters
 DEFAULT_LOAD_IN_4BIT = True
 DEFAULT_BNB_4BIT_QUANT_TYPE = "nf4"
 DEFAULT_BNB_4BIT_USE_DOUBLE_QUANT = True
+DEFAULT_BNB_4BIT_COMPUTE_DTYPE = "float16"
 DEFAULT_OUTPUT_QUANTIZATION = "q8_0"
+
+# Default Ollama Modelfile parameters
+DEFAULT_TEMPERATURE = 0.7
+DEFAULT_TOP_P = 0.9
+DEFAULT_TOP_K = 40
+DEFAULT_STOP = ["### Question:"]
+DEFAULT_SYSTEM = "You are a helpful assistant."
+DEFAULT_REPEAT_PENALTY = 1.1
+DEFAULT_REPEAT_LAST_N = 64
+DEFAULT_NUM_CTX = 2048
 
 # Task IDs in order
 TASK_IDS = [
@@ -99,6 +126,7 @@ class TrainingJob:
         training_config: TrainingConfig | None = None,
         lora_config: ProjectLoraConfig | None = None,
         quantization_config: QuantizationConfig | None = None,
+        modelfile_config: ModelfileConfig | None = None,
     ):
         self.job_id = job_id
         self.project_slug = project_slug
@@ -111,6 +139,7 @@ class TrainingJob:
         self.training_config = training_config
         self.lora_config = lora_config
         self.quantization_config = quantization_config
+        self.modelfile_config = modelfile_config
 
         self.status = TrainingStatus.IDLE
         self.progress = 0.0
@@ -239,6 +268,15 @@ class TrainingJob:
             "max_length": (config.max_length if config and config.max_length is not None else DEFAULT_MAX_LENGTH),
             "fp16": (config.fp16 if config and config.fp16 is not None else is_cuda),
             "optim": (config.optim if config and config.optim is not None else (DEFAULT_OPTIM_CUDA if is_cuda else DEFAULT_OPTIM_CPU)),
+            # Extended training parameters
+            "weight_decay": (config.weight_decay if config and config.weight_decay is not None else DEFAULT_WEIGHT_DECAY),
+            "max_grad_norm": (config.max_grad_norm if config and config.max_grad_norm is not None else DEFAULT_MAX_GRAD_NORM),
+            "lr_scheduler_type": (config.lr_scheduler_type if config and config.lr_scheduler_type is not None else DEFAULT_LR_SCHEDULER_TYPE),
+            "neftune_noise_alpha": (config.neftune_noise_alpha if config and config.neftune_noise_alpha is not None else DEFAULT_NEFTUNE_NOISE_ALPHA),
+            "seed": (config.seed if config and config.seed is not None else DEFAULT_SEED),
+            "bf16": (config.bf16 if config and config.bf16 is not None else False),
+            "logging_steps": (config.logging_steps if config and config.logging_steps is not None else (DEFAULT_LOGGING_STEPS_CUDA if is_cuda else DEFAULT_LOGGING_STEPS_CPU)),
+            "save_strategy": (config.save_strategy if config and config.save_strategy is not None else DEFAULT_SAVE_STRATEGY),
         }
 
     def get_effective_lora_config(self) -> dict:
@@ -249,6 +287,11 @@ class TrainingJob:
             "lora_alpha": (config.lora_alpha if config and config.lora_alpha is not None else DEFAULT_LORA_ALPHA),
             "lora_dropout": (config.lora_dropout if config and config.lora_dropout is not None else DEFAULT_LORA_DROPOUT),
             "target_modules": (config.target_modules if config and config.target_modules is not None else DEFAULT_LORA_TARGET_MODULES),
+            # Advanced LoRA parameters
+            "bias": (config.bias if config and config.bias is not None else DEFAULT_LORA_BIAS),
+            "use_rslora": (config.use_rslora if config and config.use_rslora is not None else DEFAULT_USE_RSLORA),
+            "use_dora": (config.use_dora if config and config.use_dora is not None else DEFAULT_USE_DORA),
+            "modules_to_save": (config.modules_to_save if config and config.modules_to_save else None),
         }
 
     def get_effective_quantization_config(self) -> dict:
@@ -258,7 +301,22 @@ class TrainingJob:
             "load_in_4bit": (config.load_in_4bit if config and config.load_in_4bit is not None else DEFAULT_LOAD_IN_4BIT),
             "bnb_4bit_quant_type": (config.bnb_4bit_quant_type if config and config.bnb_4bit_quant_type is not None else DEFAULT_BNB_4BIT_QUANT_TYPE),
             "bnb_4bit_use_double_quant": (config.bnb_4bit_use_double_quant if config and config.bnb_4bit_use_double_quant is not None else DEFAULT_BNB_4BIT_USE_DOUBLE_QUANT),
+            "bnb_4bit_compute_dtype": (config.bnb_4bit_compute_dtype if config and config.bnb_4bit_compute_dtype is not None else DEFAULT_BNB_4BIT_COMPUTE_DTYPE),
             "output_quantization": (config.output_quantization if config and config.output_quantization is not None else DEFAULT_OUTPUT_QUANTIZATION),
+        }
+
+    def get_effective_modelfile_config(self) -> dict:
+        """Get effective Ollama Modelfile configuration with defaults applied."""
+        config = self.modelfile_config
+        return {
+            "temperature": (config.temperature if config and config.temperature is not None else DEFAULT_TEMPERATURE),
+            "top_p": (config.top_p if config and config.top_p is not None else DEFAULT_TOP_P),
+            "top_k": (config.top_k if config and config.top_k is not None else DEFAULT_TOP_K),
+            "stop": (config.stop if config and config.stop is not None else DEFAULT_STOP),
+            "system": (config.system if config and config.system is not None else DEFAULT_SYSTEM),
+            "repeat_penalty": (config.repeat_penalty if config and config.repeat_penalty is not None else DEFAULT_REPEAT_PENALTY),
+            "repeat_last_n": (config.repeat_last_n if config and config.repeat_last_n is not None else DEFAULT_REPEAT_LAST_N),
+            "num_ctx": (config.num_ctx if config and config.num_ctx is not None else DEFAULT_NUM_CTX),
         }
 
 
@@ -302,6 +360,7 @@ class TrainingService:
         training_config: TrainingConfig | None = None,
         lora_config: ProjectLoraConfig | None = None,
         quantization_config: QuantizationConfig | None = None,
+        modelfile_config: ModelfileConfig | None = None,
     ) -> TrainingJob:
         """Start a new training job. Returns immediately with job in IDLE status."""
         logger.info(f"start_training called: job_id={job_id}, project={project_slug}, model={model_name}")
@@ -323,6 +382,7 @@ class TrainingService:
                 training_config=training_config,
                 lora_config=lora_config,
                 quantization_config=quantization_config,
+                modelfile_config=modelfile_config,
             )
             self._jobs[project_slug] = job
             logger.info(f"Created TrainingJob: {job_id} (status: IDLE)")
@@ -682,12 +742,20 @@ class TrainingService:
             load_in_4bit = quant_cfg["load_in_4bit"]
 
             if load_in_4bit:
+                # Map string dtype to torch dtype
+                dtype_map = {
+                    "float16": torch.float16,
+                    "bfloat16": torch.bfloat16,
+                    "float32": torch.float32,
+                }
+                compute_dtype = dtype_map.get(quant_cfg["bnb_4bit_compute_dtype"], torch.float16)
+
                 logger.info(f"[{job.job_id}] Loading with 4-bit quantization (QLoRA)")
-                logger.info(f"[{job.job_id}] Quantization config: type={quant_cfg['bnb_4bit_quant_type']}, double_quant={quant_cfg['bnb_4bit_use_double_quant']}")
+                logger.info(f"[{job.job_id}] Quantization config: type={quant_cfg['bnb_4bit_quant_type']}, double_quant={quant_cfg['bnb_4bit_use_double_quant']}, compute_dtype={quant_cfg['bnb_4bit_compute_dtype']}")
                 bnb_config = BitsAndBytesConfig(
                     load_in_4bit=True,
                     bnb_4bit_quant_type=quant_cfg["bnb_4bit_quant_type"],
-                    bnb_4bit_compute_dtype=torch.float16,
+                    bnb_4bit_compute_dtype=compute_dtype,
                     bnb_4bit_use_double_quant=quant_cfg["bnb_4bit_use_double_quant"],
                 )
                 model = AutoModelForCausalLM.from_pretrained(
@@ -727,15 +795,29 @@ class TrainingService:
 
         logger.info(f"[{job.job_id}] LoRA config: r={lora_cfg['r']}, alpha={lora_cfg['lora_alpha']}, dropout={lora_cfg['lora_dropout']}")
         logger.info(f"[{job.job_id}] LoRA target modules: {lora_cfg['target_modules']}")
+        logger.info(f"[{job.job_id}] LoRA advanced: bias={lora_cfg['bias']}, use_rslora={lora_cfg['use_rslora']}, use_dora={lora_cfg['use_dora']}")
+        if lora_cfg["modules_to_save"]:
+            logger.info(f"[{job.job_id}] LoRA modules_to_save: {lora_cfg['modules_to_save']}")
 
-        lora_config = LoraConfig(
-            r=lora_cfg["r"],
-            lora_alpha=lora_cfg["lora_alpha"],
-            target_modules=lora_cfg["target_modules"],
-            lora_dropout=lora_cfg["lora_dropout"],
-            bias="none",
-            task_type="CAUSAL_LM",
-        )
+        # Build LoRA config with required parameters
+        lora_config_params = {
+            "r": lora_cfg["r"],
+            "lora_alpha": lora_cfg["lora_alpha"],
+            "target_modules": lora_cfg["target_modules"],
+            "lora_dropout": lora_cfg["lora_dropout"],
+            "bias": lora_cfg["bias"],
+            "task_type": "CAUSAL_LM",
+        }
+
+        # Add optional advanced parameters
+        if lora_cfg["use_rslora"]:
+            lora_config_params["use_rslora"] = True
+        if lora_cfg["use_dora"]:
+            lora_config_params["use_dora"] = True
+        if lora_cfg["modules_to_save"]:
+            lora_config_params["modules_to_save"] = lora_cfg["modules_to_save"]
+
+        lora_config = LoraConfig(**lora_config_params)
         return get_peft_model(model, lora_config)
 
     def _format_training_example(self, example: dict) -> str:
@@ -904,22 +986,42 @@ class TrainingService:
 
         logger.info(f"[{job.job_id}] Training config: epochs={train_cfg['num_train_epochs']}, batch_size={train_cfg['per_device_train_batch_size']}")
         logger.info(f"[{job.job_id}] Training config: lr={train_cfg['learning_rate']}, warmup={train_cfg['warmup_ratio']}, optim={train_cfg['optim']}")
-        logger.info(f"[{job.job_id}] Training config: fp16={train_cfg['fp16']}, grad_accum={train_cfg['gradient_accumulation_steps']}")
+        logger.info(f"[{job.job_id}] Training config: fp16={train_cfg['fp16']}, bf16={train_cfg['bf16']}, grad_accum={train_cfg['gradient_accumulation_steps']}")
+        logger.info(f"[{job.job_id}] Training config: weight_decay={train_cfg['weight_decay']}, max_grad_norm={train_cfg['max_grad_norm']}, seed={train_cfg['seed']}")
+        logger.info(f"[{job.job_id}] Training config: lr_scheduler={train_cfg['lr_scheduler_type']}, logging_steps={train_cfg['logging_steps']}, save_strategy={train_cfg['save_strategy']}")
+        if train_cfg["neftune_noise_alpha"] > 0:
+            logger.info(f"[{job.job_id}] Training config: neftune_noise_alpha={train_cfg['neftune_noise_alpha']}")
+
+        # Handle fp16/bf16 mutual exclusivity - bf16 takes precedence if enabled
+        use_fp16 = train_cfg["fp16"] and not train_cfg["bf16"]
+        use_bf16 = train_cfg["bf16"]
+
+        # Build training arguments dict
+        training_args_dict = {
+            "output_dir": str(output_dir),
+            "num_train_epochs": train_cfg["num_train_epochs"],
+            "per_device_train_batch_size": train_cfg["per_device_train_batch_size"],
+            "gradient_accumulation_steps": train_cfg["gradient_accumulation_steps"],
+            "learning_rate": train_cfg["learning_rate"],
+            "fp16": use_fp16,
+            "bf16": use_bf16,
+            "logging_steps": train_cfg["logging_steps"],
+            "save_strategy": train_cfg["save_strategy"],
+            "warmup_ratio": train_cfg["warmup_ratio"],
+            "optim": train_cfg["optim"],
+            "weight_decay": train_cfg["weight_decay"],
+            "max_grad_norm": train_cfg["max_grad_norm"],
+            "lr_scheduler_type": train_cfg["lr_scheduler_type"],
+            "seed": train_cfg["seed"],
+            "report_to": [],
+        }
+
+        # Add neftune_noise_alpha only when enabled (> 0)
+        if train_cfg["neftune_noise_alpha"] > 0:
+            training_args_dict["neftune_noise_alpha"] = train_cfg["neftune_noise_alpha"]
 
         # Training arguments based on device with project overrides
-        training_args = TrainingArguments(
-            output_dir=str(output_dir),
-            num_train_epochs=train_cfg["num_train_epochs"],
-            per_device_train_batch_size=train_cfg["per_device_train_batch_size"],
-            gradient_accumulation_steps=train_cfg["gradient_accumulation_steps"],
-            learning_rate=train_cfg["learning_rate"],
-            fp16=train_cfg["fp16"],
-            logging_steps=10 if is_cuda else 5,
-            save_strategy="epoch",
-            warmup_ratio=train_cfg["warmup_ratio"],
-            optim=train_cfg["optim"],
-            report_to=[],
-        )
+        training_args = TrainingArguments(**training_args_dict)
 
         data_collator = DataCollatorForLanguageModeling(
             tokenizer=tokenizer,
@@ -1071,6 +1173,14 @@ class TrainingService:
         else:
             gguf_path = output_dir / "model_v1.gguf"
 
+        # Get effective modelfile configuration
+        mf_cfg = job.get_effective_modelfile_config()
+        logger.info(f"[{job.job_id}] Modelfile config: temperature={mf_cfg['temperature']}, top_p={mf_cfg['top_p']}, top_k={mf_cfg['top_k']}")
+        logger.info(f"[{job.job_id}] Modelfile config: repeat_penalty={mf_cfg['repeat_penalty']}, repeat_last_n={mf_cfg['repeat_last_n']}, num_ctx={mf_cfg['num_ctx']}")
+
+        # Build stop sequences
+        stop_params = "\n".join([f'PARAMETER stop "{s}"' for s in mf_cfg["stop"]])
+
         modelfile_content = f"""# Modelfile for Ollama
 # Created: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 # Project: {job.project_slug}
@@ -1085,12 +1195,16 @@ TEMPLATE \"\"\"### Question:
 \"\"\"
 
 # Parameters
-PARAMETER temperature 0.7
-PARAMETER top_p 0.9
-PARAMETER stop "### Question:"
+PARAMETER temperature {mf_cfg["temperature"]}
+PARAMETER top_p {mf_cfg["top_p"]}
+PARAMETER top_k {mf_cfg["top_k"]}
+PARAMETER repeat_penalty {mf_cfg["repeat_penalty"]}
+PARAMETER repeat_last_n {mf_cfg["repeat_last_n"]}
+PARAMETER num_ctx {mf_cfg["num_ctx"]}
+{stop_params}
 
 # System prompt
-SYSTEM You are a helpful assistant.
+SYSTEM {mf_cfg["system"]}
 """
 
         modelfile_path = output_dir / "Modelfile"
