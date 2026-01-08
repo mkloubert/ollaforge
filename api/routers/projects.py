@@ -16,6 +16,8 @@
 
 import json
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, status
@@ -343,4 +345,54 @@ async def delete_project(slug: str) -> None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error_code": ErrorCode.PROJECT_DELETION_FAILED},
+        )
+
+
+@router.post(
+    "/{slug}/open-folder",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Open project folder",
+    description="Opens the project folder in the system file manager.",
+    responses={
+        404: {"model": ErrorResponse, "description": "Project not found"},
+        500: {"model": ErrorResponse, "description": "Failed to open folder"},
+    },
+)
+async def open_project_folder(slug: str) -> None:
+    """Open the project folder in the system file manager."""
+    config = get_config()
+    projects_dir = config.projects_dir
+
+    project_dir = projects_dir / slug
+
+    # Check if project exists
+    if not project_dir.exists() or not project_dir.is_dir():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error_code": ErrorCode.PROJECT_NOT_FOUND},
+        )
+
+    # Verify it's a valid project (has project.json)
+    project_data = read_project_json(project_dir)
+    if project_data is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error_code": ErrorCode.PROJECT_NOT_FOUND},
+        )
+
+    # Open folder in system file manager
+    try:
+        if sys.platform == "win32":
+            # Windows: use explorer
+            subprocess.Popen(["explorer", str(project_dir)])
+        elif sys.platform == "darwin":
+            # macOS: use open
+            subprocess.Popen(["open", str(project_dir)])
+        else:
+            # Linux and other Unix-like: use xdg-open
+            subprocess.Popen(["xdg-open", str(project_dir)])
+    except OSError:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error_code": ErrorCode.PROJECT_OPEN_FOLDER_FAILED},
         )

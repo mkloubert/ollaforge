@@ -26,8 +26,46 @@ from models.llm_provider import LLMProviderType
 
 logger = logging.getLogger(__name__)
 
-# System prompt for all providers
-SYSTEM_PROMPT = """You are a training data generator. Your task is to extract information EXACTLY as written in the provided text and create question-answer pairs.
+# Language names for system prompt
+LANGUAGE_NAMES = {
+    "auto": None,  # Same as source
+    "en": "English",
+    "de": "German",
+    "es": "Spanish",
+    "fr": "French",
+    "pt": "Portuguese",
+    "uk": "Ukrainian",
+    "zh": "Chinese (Simplified)",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "ar": "Arabic",
+    "hi": "Hindi",
+    "it": "Italian",
+    "nl": "Dutch",
+    "pl": "Polish",
+    "el": "Greek",
+    "tr": "Turkish",
+    "he": "Hebrew",
+}
+
+
+def get_system_prompt(target_language: str = "auto") -> str:
+    """
+    Generate system prompt with language instruction.
+
+    Args:
+        target_language: Target language code (auto = same as input).
+
+    Returns:
+        The system prompt with language instruction.
+    """
+    language_instruction = (
+        "- Output in the same language as the source text"
+        if target_language == "auto"
+        else f"- Output MUST be in {LANGUAGE_NAMES.get(target_language, 'English')} language, regardless of the source text language"
+    )
+
+    return f"""You are a training data generator. Your task is to extract information EXACTLY as written in the provided text and create question-answer pairs.
 
 CRITICAL: You must NEVER correct, modify, or "fix" any information from the source text. Extract everything exactly as it appears, because:
 - Names like "Bill Gates" might refer to a completely different person in another context that you don't know about
@@ -42,7 +80,7 @@ Rules:
 - Do not "fix" what appears to be errors - they may be intentional or contextually correct
 - Create diverse questions about the content
 - Keep answers concise but complete, using the exact wording from the source when possible
-- Output in the same language as the source text
+{language_instruction}
 - Generate as many question-answer pairs as possible from the content
 - Each pair should focus on a specific piece of information"""
 
@@ -60,7 +98,7 @@ class LLMGenerator(ABC):
 
     @abstractmethod
     async def generate(
-        self, content: str, model_id: str
+        self, content: str, model_id: str, target_language: str = "auto"
     ) -> list[TrainingDataItem]:
         """
         Generate training data from content using the specified model.
@@ -68,6 +106,7 @@ class LLMGenerator(ABC):
         Args:
             content: The source text to generate training data from.
             model_id: The model ID to use for generation.
+            target_language: Target language code (auto = same as input).
 
         Returns:
             List of TrainingDataItem objects.
@@ -82,7 +121,7 @@ class OpenAIGenerator(LLMGenerator):
         self.api_key = api_key
 
     async def generate(
-        self, content: str, model_id: str
+        self, content: str, model_id: str, target_language: str = "auto"
     ) -> list[TrainingDataItem]:
         """Generate training data using OpenAI's Structured Outputs."""
         try:
@@ -124,11 +163,13 @@ class OpenAIGenerator(LLMGenerator):
             },
         }
 
+        system_prompt = get_system_prompt(target_language)
+
         try:
             response = await client.chat.completions.create(
                 model=model_id,
                 messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "system", "content": system_prompt},
                     {
                         "role": "user",
                         "content": f"Generate training data from the following text:\n\n{content}",
@@ -169,7 +210,7 @@ class AnthropicGenerator(LLMGenerator):
         self.api_key = api_key
 
     async def generate(
-        self, content: str, model_id: str
+        self, content: str, model_id: str, target_language: str = "auto"
     ) -> list[TrainingDataItem]:
         """Generate training data using Anthropic's Tool Use."""
         try:
@@ -212,11 +253,13 @@ class AnthropicGenerator(LLMGenerator):
             }
         ]
 
+        system_prompt = get_system_prompt(target_language)
+
         try:
             response = await client.messages.create(
                 model=model_id,
                 max_tokens=8000,
-                system=SYSTEM_PROMPT,
+                system=system_prompt,
                 tools=tools,
                 tool_choice={"type": "tool", "name": "extract_training_data"},
                 messages=[
@@ -255,7 +298,7 @@ class MistralGenerator(LLMGenerator):
         self.api_key = api_key
 
     async def generate(
-        self, content: str, model_id: str
+        self, content: str, model_id: str, target_language: str = "auto"
     ) -> list[TrainingDataItem]:
         """Generate training data using Mistral's JSON Mode."""
         try:
@@ -266,8 +309,10 @@ class MistralGenerator(LLMGenerator):
 
         client = Mistral(api_key=self.api_key)
 
+        system_prompt = get_system_prompt(target_language)
+
         # Enhanced system prompt with JSON schema for Mistral
-        mistral_system_prompt = f"""{SYSTEM_PROMPT}
+        mistral_system_prompt = f"""{system_prompt}
 
 You MUST respond with a valid JSON object in the following format:
 {{

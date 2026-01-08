@@ -16,15 +16,63 @@
 
 import type { Resource } from "i18next";
 
+import ar from "./ar";
 import de from "./de";
+import el from "./el";
 import en from "./en";
+import es from "./es";
+import fr from "./fr";
+import he from "./he";
+import hi from "./hi";
+import it from "./it";
+import ja from "./ja";
+import ko from "./ko";
+import nl from "./nl";
+import pl from "./pl";
+import pt from "./pt";
+import tr from "./tr";
+import uk from "./uk";
+import zh from "./zh";
 
 export const resources = {
   en,
   de,
+  es,
+  fr,
+  pt,
+  uk,
+  zh,
+  ja,
+  ko,
+  ar,
+  hi,
+  it,
+  nl,
+  pl,
+  el,
+  tr,
+  he,
 } as unknown as Resource;
 
-export const supportedLanguages = ["en", "de"] as const;
+export const supportedLanguages = [
+  "en",
+  "de",
+  "es",
+  "fr",
+  "pt",
+  "uk",
+  "zh",
+  "ja",
+  "ko",
+  "ar",
+  "hi",
+  "it",
+  "nl",
+  "pl",
+  "el",
+  "tr",
+  "he",
+] as const;
 export type SupportedLanguage = (typeof supportedLanguages)[number];
 
 export const defaultLanguage: SupportedLanguage = "en";

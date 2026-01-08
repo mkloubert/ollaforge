@@ -24,6 +24,7 @@ import {
   GeneratedDataTable,
   type TrainingRow,
   LLMGenerationControls,
+  type TargetLanguage,
   SaveGeneratedDataPanel,
 } from "@/components/generate-from-sources";
 import {
@@ -76,7 +77,7 @@ export function GenerateFromSourcesDialog({
   }, [onDataSaved, onOpenChange]);
 
   const handleGenerate = useCallback(
-    async (provider: LLMProviderType, modelId: string) => {
+    async (provider: LLMProviderType, modelId: string, targetLanguage: TargetLanguage) => {
       if (dataSources.length === 0) return;
 
       setIsGenerating(true);
@@ -99,6 +100,7 @@ export function GenerateFromSourcesDialog({
             provider,
             model_id: modelId,
             sources,
+            target_language: targetLanguage,
           },
           {
             timeout: 300000, // 5 minutes for LLM generation

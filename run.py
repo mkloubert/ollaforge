@@ -381,7 +381,8 @@ def wait_for_server(url: str, timeout: int = 30, interval: float = 0.5) -> bool:
 def open_browser(url: str) -> None:
     """Open the default browser with the given URL."""
     try:
-        webbrowser.open(url)
+        # new=0: Try to reuse existing browser window/tab if possible
+        webbrowser.open(url, new=0)
         print(f"[BROWSER] Opened {url} in default browser")
     except Exception as e:
         print(f"[BROWSER] Could not open browser automatically: {e}")

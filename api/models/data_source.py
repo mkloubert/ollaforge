@@ -28,6 +28,29 @@ class DataSourceType(str, Enum):
     TEXT = "text"
 
 
+class TargetLanguage(str, Enum):
+    """Target language for generated output."""
+
+    AUTO = "auto"
+    EN = "en"
+    DE = "de"
+    ES = "es"
+    FR = "fr"
+    PT = "pt"
+    UK = "uk"
+    ZH = "zh"
+    JA = "ja"
+    KO = "ko"
+    AR = "ar"
+    HI = "hi"
+    IT = "it"
+    NL = "nl"
+    PL = "pl"
+    EL = "el"
+    TR = "tr"
+    HE = "he"
+
+
 class DataSource(BaseModel):
     """A data source for JSONL generation."""
 
@@ -93,6 +116,10 @@ class GenerateTrainingDataRequest(BaseModel):
     provider: str = Field(..., description="The LLM provider to use (openai, anthropic, mistral)")
     model_id: str = Field(..., description="The model ID to use")
     sources: list[DataSource] = Field(..., description="List of data sources to process")
+    target_language: TargetLanguage = Field(
+        default=TargetLanguage.AUTO,
+        description="Target language for generated output (auto = same as input)",
+    )
 
 
 class GenerateTrainingDataResponse(BaseModel):

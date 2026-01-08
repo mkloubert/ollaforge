@@ -48,6 +48,21 @@ export interface TranslationSchema {
     language: {
       en: string;
       de: string;
+      es: string;
+      fr: string;
+      pt: string;
+      uk: string;
+      zh: string;
+      ja: string;
+      ko: string;
+      ar: string;
+      hi: string;
+      it: string;
+      nl: string;
+      pl: string;
+      el: string;
+      tr: string;
+      he: string;
       select: string;
     };
     api: {
@@ -132,6 +147,27 @@ export interface TranslationSchema {
         generate: string;
         generating: string;
         progress: string;
+        targetLanguage: string;
+        languages: {
+          auto: string;
+          en: string;
+          de: string;
+          es: string;
+          fr: string;
+          pt: string;
+          uk: string;
+          zh: string;
+          ja: string;
+          ko: string;
+          ar: string;
+          hi: string;
+          it: string;
+          nl: string;
+          pl: string;
+          el: string;
+          tr: string;
+          he: string;
+        };
       };
       results: {
         title: string;
@@ -176,6 +212,7 @@ export interface TranslationSchema {
       deleteTitle: string;
       deleteDescription: string;
       deleting: string;
+      openFolder: string;
     };
     project: {
       title: string;
@@ -558,6 +595,7 @@ export interface TranslationSchema {
       ERR_PROJECT_1005: string;
       ERR_PROJECT_1006: string;
       ERR_PROJECT_1007: string;
+      ERR_PROJECT_1008: string;
       ERR_MODEL_2001: string;
       ERR_MODEL_2002: string;
       ERR_DATA_3001: string;

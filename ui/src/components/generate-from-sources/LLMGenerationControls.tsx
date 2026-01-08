@@ -36,9 +36,51 @@ import {
   getModelsForProvider,
   type LLMProviderType,
 } from "@/lib/llmModels";
+import { getLanguageFlag, sortLanguagesByName } from "@/lib/languageUtils";
+
+export type TargetLanguage =
+  | "auto"
+  | "en"
+  | "de"
+  | "es"
+  | "fr"
+  | "pt"
+  | "uk"
+  | "zh"
+  | "ja"
+  | "ko"
+  | "ar"
+  | "hi"
+  | "it"
+  | "nl"
+  | "pl"
+  | "el"
+  | "tr"
+  | "he";
+
+const TARGET_LANGUAGES: TargetLanguage[] = [
+  "auto",
+  "en",
+  "de",
+  "es",
+  "fr",
+  "pt",
+  "uk",
+  "zh",
+  "ja",
+  "ko",
+  "ar",
+  "hi",
+  "it",
+  "nl",
+  "pl",
+  "el",
+  "tr",
+  "he",
+];
 
 interface LLMGenerationControlsProps {
-  onGenerate: (provider: LLMProviderType, modelId: string) => Promise<void>;
+  onGenerate: (provider: LLMProviderType, modelId: string, targetLanguage: TargetLanguage) => Promise<void>;
   isGenerating: boolean;
   progress?: {
     current: number;
@@ -73,6 +115,8 @@ export function LLMGenerationControls({
 
   // Store selected value as "provider:modelId" format
   const [selectedValue, setSelectedValue] = useState<string | null>(null);
+  // Store selected target language
+  const [selectedLanguage, setSelectedLanguage] = useState<TargetLanguage>("auto");
 
   // Get available providers
   const availableProviders = useMemo(() => {
@@ -117,9 +161,18 @@ export function LLMGenerationControls({
 
   const handleGenerate = useCallback(async () => {
     if (effectiveProvider && effectiveModelId) {
-      await onGenerate(effectiveProvider, effectiveModelId);
+      await onGenerate(effectiveProvider, effectiveModelId, selectedLanguage);
     }
-  }, [effectiveProvider, effectiveModelId, onGenerate]);
+  }, [effectiveProvider, effectiveModelId, selectedLanguage, onGenerate]);
+
+  // Sort target languages alphabetically, keeping "auto" at the top
+  const sortedTargetLanguages = useMemo(() => {
+    const languagesWithoutAuto = TARGET_LANGUAGES.filter((lang) => lang !== "auto");
+    const sorted = sortLanguagesByName(languagesWithoutAuto, (lang) =>
+      t(`generateFromSources.llm.languages.${lang}`)
+    );
+    return ["auto" as TargetLanguage, ...sorted];
+  }, [t]);
 
   const canGenerate =
     !disabled &&
@@ -187,6 +240,37 @@ export function LLMGenerationControls({
             })}
           </p>
         )}
+      </div>
+
+      {/* Target Language Selection */}
+      <div className="flex flex-col gap-2">
+        <label className="text-sm font-medium">
+          {t("generateFromSources.llm.targetLanguage")}
+        </label>
+        <Select
+          value={selectedLanguage}
+          onValueChange={(value) => setSelectedLanguage(value as TargetLanguage)}
+          disabled={disabled || isGenerating}
+        >
+          <SelectTrigger>
+            <SelectValue>
+              <span className="flex items-center gap-2">
+                <span>{getLanguageFlag(selectedLanguage)}</span>
+                <span>{t(`generateFromSources.llm.languages.${selectedLanguage}`)}</span>
+              </span>
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {sortedTargetLanguages.map((lang) => (
+              <SelectItem key={lang} value={lang}>
+                <span className="flex items-center gap-2">
+                  <span>{getLanguageFlag(lang)}</span>
+                  <span>{t(`generateFromSources.llm.languages.${lang}`)}</span>
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Generate Button */}

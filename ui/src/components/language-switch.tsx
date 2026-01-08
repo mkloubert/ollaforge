@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import { useMemo } from "react";
 import { Languages } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -29,6 +30,7 @@ import {
   supportedLanguages,
   type SupportedLanguage,
 } from "@/i18n";
+import { getLanguageFlag, sortLanguagesByName } from "@/lib/languageUtils";
 
 export function LanguageSwitch() {
   const { t, i18n } = useTranslation();
@@ -36,6 +38,14 @@ export function LanguageSwitch() {
   const handleLanguageChange = (lang: SupportedLanguage) => {
     setLanguage(lang);
   };
+
+  const sortedLanguages = useMemo(
+    () =>
+      sortLanguagesByName(supportedLanguages, (lang) =>
+        t(`language.${lang}`)
+      ),
+    [t]
+  );
 
   return (
     <DropdownMenu>
@@ -46,12 +56,13 @@ export function LanguageSwitch() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {supportedLanguages.map((lang) => (
+        {sortedLanguages.map((lang) => (
           <DropdownMenuItem
             key={lang}
             onClick={() => handleLanguageChange(lang)}
             className={i18n.language === lang ? "bg-accent" : ""}
           >
+            <span className="mr-2">{getLanguageFlag(lang)}</span>
             {t(`language.${lang}`)}
           </DropdownMenuItem>
         ))}

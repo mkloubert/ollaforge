@@ -49,3 +49,7 @@ export async function updateProject(
   );
   return response.data;
 }
+
+export async function openProjectFolder(slug: string): Promise<void> {
+  await api.post(`/api/projects/${encodeURIComponent(slug)}/open-folder`);
+}

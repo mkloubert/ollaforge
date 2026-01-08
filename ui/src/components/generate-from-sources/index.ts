@@ -19,4 +19,5 @@ export type { DataSourceItem } from "./DataSourcesPanel";
 export { GeneratedDataTable } from "./GeneratedDataTable";
 export type { TrainingRow } from "./GeneratedDataTable";
 export { LLMGenerationControls } from "./LLMGenerationControls";
+export type { TargetLanguage } from "./LLMGenerationControls";
 export { SaveGeneratedDataPanel } from "./SaveGeneratedDataPanel";

@@ -443,7 +443,9 @@ async def generate_training_data(
 
     for chunk in chunks:
         try:
-            items = await generator.generate(chunk.content, request.model_id)
+            items = await generator.generate(
+                chunk.content, request.model_id, request.target_language.value
+            )
             for item in items:
                 all_items.append(
                     TrainingDataRow(

@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { useState } from "react";
-import { AlertCircle, FolderOpen, Home, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, ExternalLink, FolderOpen, Home, Pencil, Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 
@@ -50,6 +50,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useProjects } from "@/hooks/useProjects";
+import { openProjectFolder } from "@/lib/projects";
 import type { Project } from "@/types";
 
 export function HomePage() {
@@ -85,6 +86,16 @@ export function HomePage() {
     e.stopPropagation();
     setProjectToDelete(project);
     setIsDeleteDialogOpen(true);
+  };
+
+  const handleOpenFolderClick = async (e: React.MouseEvent, project: Project) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await openProjectFolder(project.slug);
+    } catch {
+      // Silently ignore errors - the folder might not open on headless systems
+    }
   };
 
   const handleDeleteSuccess = () => {
@@ -157,24 +168,48 @@ export function HomePage() {
                         {project.name}
                       </span>
                       <span className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={(e) => handleEditClick(e, project)}
-                        >
-                          <Pencil className="h-4 w-4 text-muted-foreground" />
-                          <span className="sr-only">{t("common.edit")}</span>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive/70 hover:text-destructive hover:bg-destructive/10"
-                          onClick={(e) => handleDeleteClick(e, project)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">{t("common.delete")}</span>
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={(e) => handleOpenFolderClick(e, project)}
+                            >
+                              <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                              <span className="sr-only">{t("projects.openFolder")}</span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>{t("projects.openFolder")}</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={(e) => handleEditClick(e, project)}
+                            >
+                              <Pencil className="h-4 w-4 text-muted-foreground" />
+                              <span className="sr-only">{t("common.edit")}</span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>{t("common.edit")}</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive/70 hover:text-destructive hover:bg-destructive/10"
+                              onClick={(e) => handleDeleteClick(e, project)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">{t("common.delete")}</span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>{t("common.delete")}</TooltipContent>
+                        </Tooltip>
                       </span>
                     </CardTitle>
                     <CardDescription className="flex flex-col">

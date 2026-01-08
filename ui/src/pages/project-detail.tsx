@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { useCallback, useEffect, useRef } from "react";
-import { AlertCircle, FolderOpen, Home } from "lucide-react";
+import { AlertCircle, ExternalLink, FolderOpen, Home } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router";
 
@@ -43,6 +43,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useDataFiles } from "@/hooks/useDataFiles";
 import { useFileManagement } from "@/hooks/useFileManagement";
 import { useModels } from "@/hooks/useModels";
@@ -50,7 +55,7 @@ import { useOllama } from "@/hooks/useOllama";
 import { useProject } from "@/hooks/useProject";
 import { useProjectConfig } from "@/hooks/useProjectConfig";
 import { useTraining } from "@/hooks/useTraining";
-import { updateProject } from "@/lib/projects";
+import { openProjectFolder, updateProject } from "@/lib/projects";
 import type { TrainingStatus } from "@/types";
 
 const ACTIVE_STATUSES: TrainingStatus[] = [
@@ -128,6 +133,15 @@ export function ProjectDetailPage() {
   const handleRunInOllama = useCallback(async () => {
     await runInOllama();
   }, [runInOllama]);
+
+  const handleOpenFolder = useCallback(async () => {
+    if (!slug) return;
+    try {
+      await openProjectFolder(slug);
+    } catch {
+      // Silently ignore errors - the folder might not open on headless systems
+    }
+  }, [slug]);
 
   // Check Ollama status after successful training
   const prevTrainingStatusRef = useRef(trainingStatus);
@@ -234,9 +248,25 @@ export function ProjectDetailPage() {
         {/* Project Title Card */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FolderOpen className="h-5 w-5 text-muted-foreground" />
-              {project.name}
+            <CardTitle className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2">
+                <FolderOpen className="h-5 w-5 text-muted-foreground" />
+                {project.name}
+              </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={handleOpenFolder}
+                  >
+                    <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    <span className="sr-only">{t("projects.openFolder")}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t("projects.openFolder")}</TooltipContent>
+              </Tooltip>
             </CardTitle>
             <CardDescription className="flex flex-col">
               <span className="font-mono text-xs text-muted-foreground/70 truncate">
