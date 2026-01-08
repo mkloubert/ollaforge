@@ -346,6 +346,7 @@ export interface TranslationSchema {
         register_ollama: string;
       };
       taskWarnings: string;
+      stillWorking: string;
       errorTitle: string;
       completed: string;
       completedDescription: string;

@@ -15,6 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { AlertTriangle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Progress } from "@/components/ui/progress";
@@ -26,10 +27,61 @@ interface TaskItemProps {
   task: TrainingTask;
 }
 
+// Time in milliseconds before showing "Still working..." message
+const STALL_THRESHOLD_MS = 30000;
+
 export function TaskItem({ task }: TaskItemProps) {
   const { t } = useTranslation();
   const showProgress = task.status === "in_progress" && task.progress > 0;
   const hasWarnings = task.error_count > 0;
+  const isActive = task.status === "in_progress";
+
+  // Stalled state - only updated via timer callback
+  const [isStalled, setIsStalled] = useState(false);
+
+  // Refs to track state without triggering re-renders
+  const lastProgressRef = useRef(task.progress);
+  const lastChangeTimeRef = useRef<number>(0);
+  const isActiveRef = useRef(isActive);
+
+  // Effect to manage the stalled-check timer
+  useEffect(() => {
+    if (!isActive) {
+      // Cleanup refs when inactive, but don't call setState here
+      lastChangeTimeRef.current = 0;
+      isActiveRef.current = false;
+      return;
+    }
+
+    isActiveRef.current = true;
+
+    // Check immediately and then every 5 seconds
+    const checkStalled = () => {
+      const now = Date.now();
+
+      // Update timestamp if progress changed
+      if (task.progress !== lastProgressRef.current || lastChangeTimeRef.current === 0) {
+        lastProgressRef.current = task.progress;
+        lastChangeTimeRef.current = now;
+      }
+
+      // Calculate stalled status
+      const timeSinceChange = now - lastChangeTimeRef.current;
+      const shouldBeStalled = isActiveRef.current && timeSinceChange >= STALL_THRESHOLD_MS;
+      setIsStalled(shouldBeStalled);
+    };
+
+    // Initial check after a short delay (not synchronous)
+    const initialTimeout = setTimeout(checkStalled, 100);
+
+    // Periodic checks
+    const checkInterval = setInterval(checkStalled, 5000);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(checkInterval);
+    };
+  }, [isActive, task.progress]);
 
   return (
     <div className="flex items-center gap-3 py-2">
@@ -59,12 +111,22 @@ export function TaskItem({ task }: TaskItemProps) {
               </span>
             )}
           </div>
-          {showProgress && (
-            <span className="text-xs text-muted-foreground">{task.progress}%</span>
-          )}
+          <div className="flex items-center gap-2">
+            {isStalled && (
+              <span className="text-xs text-muted-foreground animate-pulse">
+                {t("training.stillWorking")}
+              </span>
+            )}
+            {showProgress && (
+              <span className="text-xs text-muted-foreground">{task.progress}%</span>
+            )}
+          </div>
         </div>
         {showProgress && (
-          <Progress value={task.progress} className="h-1 mt-1" />
+          <Progress
+            value={task.progress}
+            className={`h-1 mt-1 ${isActive ? "animate-pulse" : ""}`}
+          />
         )}
       </div>
     </div>

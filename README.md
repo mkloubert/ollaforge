@@ -7,6 +7,8 @@ A web application that simplifies training LLMs with your own data for use in Ol
 - **Project Management**: Create, edit, and delete training projects
 - **Training Data**: Upload JSONL files with instruction/output pairs
 - **Model Training**: Fine-tune LLMs using QLoRA with automatic GGUF conversion
+- **10 Pre-configured Models**: Curated selection of chat-compatible instruct models
+- **8 Training Presets**: Quick-start configurations for different use cases
 - **Advanced Configuration**: Customize training, LoRA, and quantization parameters
 - **Ollama Integration**: Create and run trained models directly in Ollama
 - **Hugging Face Integration**: Login to access gated models
@@ -86,6 +88,42 @@ Upload JSONL files where each line is a JSON object:
 {"instruction": "What is the capital of France?", "output": "The capital of France is Paris."}
 {"instruction": "Translate 'Hello' to German", "output": "Hallo"}
 ```
+
+### Supported Base Models
+
+OllaForge includes 10 pre-configured instruct models that are chat-compatible after fine-tuning:
+
+| Model                                     | Size                | License    | Best For                        |
+| ----------------------------------------- | ------------------- | ---------- | ------------------------------- |
+| `bigscience/bloomz-560m`                  | 560M                | RAIL       | Multilingual (46 languages)     |
+| `HuggingFaceTB/SmolLM2-1.7B-Instruct`     | 1.7B                | Apache 2.0 | Edge/mobile, low resources      |
+| `TinyLlama/TinyLlama-1.1B-Chat-v1.0`      | 1.1B                | Apache 2.0 | Ultra-lightweight, quick tests  |
+| `Qwen/Qwen2.5-3B-Instruct`                | 3B                  | Apache 2.0 | Balanced size and capability    |
+| `microsoft/Phi-3-mini-4k-instruct`        | 3.8B                | MIT        | Reasoning, compact but powerful |
+| `mistralai/Mistral-7B-Instruct-v0.3`      | 7B                  | Apache 2.0 | General-purpose, strong baseline|
+| `tiiuae/falcon-7b-instruct`               | 7B                  | Apache 2.0 | Chat, QA, text generation       |
+| `Qwen/Qwen2.5-7B-Instruct`                | 7B                  | Apache 2.0 | Multilingual, long context      |
+| `Qwen/Qwen2.5-14B-Instruct`               | 14B                 | Apache 2.0 | Complex tasks, highest quality  |
+| `mistralai/Mixtral-8x7B-Instruct-v0.1`    | 46.7B (12.9B active)| Apache 2.0 | MoE, large model performance    |
+
+All models are instruction-tuned, ensuring trained models can be used for chat applications.
+
+### Training Presets
+
+The Advanced Settings tab includes 8 training presets for quick configuration:
+
+| Preset           | Description                                      | Recommended For              |
+| ---------------- | ------------------------------------------------ | ---------------------------- |
+| **Balanced**     | Good balance of speed and quality                | All models                   |
+| **Chat**         | Optimized for conversational AI                  | Mistral, Qwen, SmolLM        |
+| **Code**         | Optimized for programming and code completion    | Qwen, Mistral, Phi           |
+| **Fast**         | Quick training for rapid experimentation         | SmolLM, TinyLlama, BLOOMZ    |
+| **High Quality** | Maximum quality at cost of training time         | Qwen-14B, Mixtral, Mistral   |
+| **Low Memory**   | Minimized VRAM for limited hardware              | SmolLM, TinyLlama, BLOOMZ    |
+| **Multilingual** | Optimized for multilingual models                | Qwen, BLOOMZ                 |
+| **Reasoning**    | Optimized for logical reasoning and math         | Phi, Qwen                    |
+
+Each preset configures training parameters, LoRA settings, and quantization options. Presets show which models they work best with.
 
 ### Advanced Configuration
 
@@ -197,6 +235,13 @@ If a default port is in use, the application automatically finds an available po
 | ------ | ----------- | ------------------------ |
 | GET    | /api/models | List available HF models |
 
+### Presets
+
+| Method | Endpoint              | Description           |
+| ------ | --------------------- | --------------------- |
+| GET    | /api/presets          | List training presets |
+| GET    | /api/presets/{id}     | Get a specific preset |
+
 ### Hugging Face
 
 | Method | Endpoint                | Description      |
@@ -295,6 +340,7 @@ On startup, `run.py` automatically checks for llama.cpp:
 │   ├── main.py          # Main application with CORS
 │   ├── config.py        # Configuration management
 │   ├── error_codes.py   # Error code definitions
+│   ├── constants/       # Static data (presets, defaults)
 │   ├── models/          # Pydantic models
 │   ├── routers/         # API route handlers
 │   └── services/        # Business logic services

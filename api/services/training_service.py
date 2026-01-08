@@ -87,6 +87,84 @@ from models.training import (
 logger = logging.getLogger(__name__)
 
 
+class HFDownloadProgress:
+    """Custom tqdm-like class for tracking Hugging Face download progress.
+
+    This class mimics the tqdm interface and forwards progress to a TrainingJob.
+    It's used with huggingface_hub's tqdm_class parameter.
+    """
+
+    def __init__(
+        self,
+        *args,
+        job: "TrainingJob | None" = None,
+        task_id: str = "load_model",
+        progress_start: int = 10,
+        progress_end: int = 30,
+        **kwargs,
+    ):
+        self.job = job
+        self.task_id = task_id
+        self.progress_start = progress_start
+        self.progress_end = progress_end
+        self.total = kwargs.get("total", 0) or 0
+        self.n = 0
+        self.desc = kwargs.get("desc", "")
+        self._last_progress = progress_start
+
+    def update(self, n: int = 1) -> None:
+        """Update progress by n units."""
+        self.n += n
+        if self.total > 0 and self.job is not None:
+            # Calculate progress within our range
+            percent = self.n / self.total
+            progress = int(self.progress_start + percent * (self.progress_end - self.progress_start))
+            # Only update if progress increased
+            if progress > self._last_progress:
+                self.job.set_task_progress(self.task_id, progress)
+                self._last_progress = progress
+                logger.debug(f"[{self.job.job_id}] Download progress: {self.desc} {percent*100:.1f}%")
+
+    def close(self) -> None:
+        """Close the progress bar."""
+        pass
+
+    def refresh(self) -> None:
+        """Refresh the display."""
+        pass
+
+    def set_description(self, desc: str = None, refresh: bool = True) -> None:
+        """Set description."""
+        self.desc = desc or ""
+
+    def set_postfix(self, *args, **kwargs) -> None:
+        """Set postfix."""
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+
+def create_hf_progress_factory(job: "TrainingJob", task_id: str, progress_start: int, progress_end: int):
+    """Create a factory function for HFDownloadProgress instances.
+
+    This is needed because huggingface_hub calls tqdm_class with specific arguments.
+    """
+    def factory(*args, **kwargs):
+        return HFDownloadProgress(
+            *args,
+            job=job,
+            task_id=task_id,
+            progress_start=progress_start,
+            progress_end=progress_end,
+            **kwargs,
+        )
+    return factory
+
+
 class TrainingJob:
     """Represents a single training job."""
 
@@ -138,6 +216,10 @@ class TrainingJob:
 
         self._cancel_requested = False
         self._thread: threading.Thread | None = None
+
+        # Heartbeat mechanism for blocking operations
+        self._heartbeat_thread: threading.Thread | None = None
+        self._heartbeat_stop_event: threading.Event = threading.Event()
 
     def set_task_status(self, task_id: str, status: TaskStatus, progress: int = 0) -> None:
         """Update a task's status and progress."""
@@ -213,6 +295,57 @@ class TrainingJob:
     def is_cancelled(self) -> bool:
         """Check if cancellation was requested."""
         return self._cancel_requested
+
+    def start_heartbeat(
+        self,
+        task_id: str,
+        start_progress: int,
+        end_progress: int,
+        interval_seconds: float = 10.0,
+    ) -> None:
+        """Start a heartbeat thread that slowly increases progress during blocking operations.
+
+        Args:
+            task_id: The task ID to update progress for
+            start_progress: Starting progress percentage (0-100)
+            end_progress: Maximum progress percentage to reach (0-100)
+            interval_seconds: Time between progress updates (default: 10 seconds)
+        """
+        # Stop any existing heartbeat first
+        self.stop_heartbeat()
+
+        self._heartbeat_stop_event.clear()
+
+        def heartbeat_worker():
+            current_progress = start_progress
+            increment = 1  # Increase by 1% each interval
+
+            while not self._heartbeat_stop_event.is_set():
+                # Wait for the interval, but check stop event more frequently
+                if self._heartbeat_stop_event.wait(timeout=interval_seconds):
+                    break
+
+                # Increment progress but don't exceed end_progress
+                if current_progress < end_progress:
+                    current_progress = min(current_progress + increment, end_progress)
+                    self.set_task_progress(task_id, current_progress)
+                    logger.debug(f"[{self.job_id}] Heartbeat: {task_id} progress={current_progress}%")
+
+        self._heartbeat_thread = threading.Thread(
+            target=heartbeat_worker,
+            daemon=True,
+            name=f"heartbeat-{self.job_id}-{task_id}",
+        )
+        self._heartbeat_thread.start()
+        logger.info(f"[{self.job_id}] Heartbeat started for task {task_id} ({start_progress}% -> {end_progress}%)")
+
+    def stop_heartbeat(self) -> None:
+        """Stop the heartbeat thread if running."""
+        if self._heartbeat_thread is not None and self._heartbeat_thread.is_alive():
+            self._heartbeat_stop_event.set()
+            self._heartbeat_thread.join(timeout=2.0)
+            logger.info(f"[{self.job_id}] Heartbeat stopped")
+        self._heartbeat_thread = None
 
     def get_tasks_list(self) -> list[TrainingTask]:
         """Get tasks as ordered list."""
@@ -729,63 +862,134 @@ class TrainingService:
 
             logger.info(f"[{job.job_id}] {filename}: Loaded {loaded_in_file} rows")
 
-    def _load_model(self, job, device, torch, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, prepare_model_for_kbit_training):
-        """Load model and tokenizer. Uses HF_TOKEN from environment if set."""
-        job.set_task_progress("load_model", 10)
+    def _download_model_files(self, job: "TrainingJob", model_name: str) -> str | None:
+        """Download model files from Hugging Face Hub with progress tracking.
 
-        tokenizer = AutoTokenizer.from_pretrained(job.model_name)
+        Returns the local cache path if download was needed, or None if using model_name directly.
+        For cached models, this returns quickly without re-downloading.
+        """
+        try:
+            from huggingface_hub import snapshot_download, HfFileSystem
+            from huggingface_hub.utils import LocalEntryNotFoundError
+
+            logger.info(f"[{job.job_id}] Checking/downloading model files: {model_name}")
+
+            # Create progress factory for download tracking (10-30% range)
+            progress_factory = create_hf_progress_factory(
+                job=job,
+                task_id="load_model",
+                progress_start=10,
+                progress_end=30,
+            )
+
+            # Check if it's a local path
+            if Path(model_name).exists():
+                logger.info(f"[{job.job_id}] Using local model path: {model_name}")
+                job.set_task_progress("load_model", 30)
+                return model_name
+
+            # Download with progress tracking
+            # This will use cache if files are already downloaded
+            local_dir = snapshot_download(
+                repo_id=model_name,
+                tqdm_class=progress_factory,
+                resume_download=True,
+            )
+
+            logger.info(f"[{job.job_id}] Model files ready at: {local_dir}")
+            job.set_task_progress("load_model", 30)
+            return local_dir
+
+        except ImportError:
+            # huggingface_hub not available, fall back to direct loading
+            logger.warning(f"[{job.job_id}] huggingface_hub not available, using direct loading")
+            job.set_task_progress("load_model", 30)
+            return None
+        except Exception as e:
+            # If download fails, try direct loading (might work for cached models)
+            logger.warning(f"[{job.job_id}] Download check failed ({e}), trying direct loading")
+            job.set_task_progress("load_model", 30)
+            return None
+
+    def _load_model(self, job, device, torch, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, prepare_model_for_kbit_training):
+        """Load model and tokenizer. Uses HF_TOKEN from environment if set.
+
+        Progress phases:
+        - 0-10%: Initialization
+        - 10-30%: Download (fast if cached)
+        - 30-90%: Loading model into memory
+        - 90-100%: Finalization
+        """
+        job.set_task_progress("load_model", 5)
+
+        # Phase 1: Download model files (10-30%)
+        # This will be fast if model is already cached
+        model_path = self._download_model_files(job, job.model_name)
+        model_id = model_path if model_path else job.model_name
+
+        # Load tokenizer (quick operation)
+        job.set_task_progress("load_model", 32)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
 
-        job.set_task_progress("load_model", 30)
+        job.set_task_progress("load_model", 35)
 
-        if device == "cuda":
-            # Get effective quantization config
-            quant_cfg = job.get_effective_quantization_config()
-            load_in_4bit = quant_cfg["load_in_4bit"]
+        # Phase 2: Load model into memory (35-90%)
+        # Start heartbeat for model loading (can take a long time for large models)
+        job.start_heartbeat("load_model", start_progress=35, end_progress=85, interval_seconds=10.0)
 
-            if load_in_4bit:
-                # Map string dtype to torch dtype
-                dtype_map = {
-                    "float16": torch.float16,
-                    "bfloat16": torch.bfloat16,
-                    "float32": torch.float32,
-                }
-                compute_dtype = dtype_map.get(quant_cfg["bnb_4bit_compute_dtype"], torch.float16)
+        try:
+            if device == "cuda":
+                # Get effective quantization config
+                quant_cfg = job.get_effective_quantization_config()
+                load_in_4bit = quant_cfg["load_in_4bit"]
 
-                logger.info(f"[{job.job_id}] Loading with 4-bit quantization (QLoRA)")
-                logger.info(f"[{job.job_id}] Quantization config: type={quant_cfg['bnb_4bit_quant_type']}, double_quant={quant_cfg['bnb_4bit_use_double_quant']}, compute_dtype={quant_cfg['bnb_4bit_compute_dtype']}")
-                bnb_config = BitsAndBytesConfig(
-                    load_in_4bit=True,
-                    bnb_4bit_quant_type=quant_cfg["bnb_4bit_quant_type"],
-                    bnb_4bit_compute_dtype=compute_dtype,
-                    bnb_4bit_use_double_quant=quant_cfg["bnb_4bit_use_double_quant"],
-                )
-                model = AutoModelForCausalLM.from_pretrained(
-                    job.model_name,
-                    quantization_config=bnb_config,
-                    device_map="auto",
-                    trust_remote_code=True,
-                )
-                model = prepare_model_for_kbit_training(model)
+                if load_in_4bit:
+                    # Map string dtype to torch dtype
+                    dtype_map = {
+                        "float16": torch.float16,
+                        "bfloat16": torch.bfloat16,
+                        "float32": torch.float32,
+                    }
+                    compute_dtype = dtype_map.get(quant_cfg["bnb_4bit_compute_dtype"], torch.float16)
+
+                    logger.info(f"[{job.job_id}] Loading with 4-bit quantization (QLoRA)")
+                    logger.info(f"[{job.job_id}] Quantization config: type={quant_cfg['bnb_4bit_quant_type']}, double_quant={quant_cfg['bnb_4bit_use_double_quant']}, compute_dtype={quant_cfg['bnb_4bit_compute_dtype']}")
+                    bnb_config = BitsAndBytesConfig(
+                        load_in_4bit=True,
+                        bnb_4bit_quant_type=quant_cfg["bnb_4bit_quant_type"],
+                        bnb_4bit_compute_dtype=compute_dtype,
+                        bnb_4bit_use_double_quant=quant_cfg["bnb_4bit_use_double_quant"],
+                    )
+                    model = AutoModelForCausalLM.from_pretrained(
+                        model_id,
+                        quantization_config=bnb_config,
+                        device_map="auto",
+                        trust_remote_code=True,
+                    )
+                    model = prepare_model_for_kbit_training(model)
+                else:
+                    logger.info(f"[{job.job_id}] Loading without 4-bit quantization (CUDA)")
+                    model = AutoModelForCausalLM.from_pretrained(
+                        model_id,
+                        torch_dtype=torch.float16,
+                        device_map="auto",
+                        trust_remote_code=True,
+                    )
             else:
-                logger.info(f"[{job.job_id}] Loading without 4-bit quantization (CUDA)")
+                logger.info(f"[{job.job_id}] Loading without quantization")
                 model = AutoModelForCausalLM.from_pretrained(
-                    job.model_name,
-                    torch_dtype=torch.float16,
-                    device_map="auto",
+                    model_id,
+                    torch_dtype=torch.float32 if device == "cpu" else torch.float16,
+                    device_map={"": device} if device == "mps" else None,
                     trust_remote_code=True,
                 )
-        else:
-            logger.info(f"[{job.job_id}] Loading without quantization")
-            model = AutoModelForCausalLM.from_pretrained(
-                job.model_name,
-                torch_dtype=torch.float32 if device == "cpu" else torch.float16,
-                device_map={"": device} if device == "mps" else None,
-                trust_remote_code=True,
-            )
-            if device == "cpu":
-                model = model.to(device)
+                if device == "cpu":
+                    model = model.to(device)
+        finally:
+            # Always stop heartbeat when done
+            job.stop_heartbeat()
 
         job.set_task_progress("load_model", 90)
         logger.info(f"[{job.job_id}] Model loaded successfully")
@@ -1195,25 +1399,89 @@ Assistant:""",
 
         return final_model_path
 
+    def _download_model_files_for_merge(self, job: "TrainingJob", model_name: str) -> str | None:
+        """Download model files for merge operation with progress tracking.
+
+        Similar to _download_model_files but uses merge_lora task for progress.
+        For cached models (from training), this returns quickly.
+        """
+        try:
+            from huggingface_hub import snapshot_download
+
+            logger.info(f"[{job.job_id}] Checking model files for merge: {model_name}")
+
+            # Create progress factory for download tracking (10-25% range for merge task)
+            progress_factory = create_hf_progress_factory(
+                job=job,
+                task_id="merge_lora",
+                progress_start=10,
+                progress_end=25,
+            )
+
+            # Check if it's a local path
+            if Path(model_name).exists():
+                logger.info(f"[{job.job_id}] Using local model path: {model_name}")
+                job.set_task_progress("merge_lora", 25)
+                return model_name
+
+            # Download with progress tracking (fast if already cached)
+            local_dir = snapshot_download(
+                repo_id=model_name,
+                tqdm_class=progress_factory,
+                resume_download=True,
+            )
+
+            logger.info(f"[{job.job_id}] Model files ready for merge at: {local_dir}")
+            job.set_task_progress("merge_lora", 25)
+            return local_dir
+
+        except ImportError:
+            logger.warning(f"[{job.job_id}] huggingface_hub not available, using direct loading")
+            job.set_task_progress("merge_lora", 25)
+            return None
+        except Exception as e:
+            logger.warning(f"[{job.job_id}] Download check for merge failed ({e}), trying direct loading")
+            job.set_task_progress("merge_lora", 25)
+            return None
+
     def _merge_lora(self, job: TrainingJob, adapter_path: Path, torch) -> tuple[Path, Path]:
-        """Merge LoRA adapter with base model. Uses HF_TOKEN from environment if set."""
+        """Merge LoRA adapter with base model. Uses HF_TOKEN from environment if set.
+
+        Progress phases:
+        - 0-10%: Initialization
+        - 10-25%: Download check (fast if cached from training)
+        - 25-40%: Loading model into memory
+        - 40-80%: Merge and save
+        """
         from peft import PeftModel
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
-        job.set_task_progress("merge_lora", 10)
+        job.set_task_progress("merge_lora", 5)
 
         output_dir = job.project_path / "output" / "ollama"
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Load base model (uses HF_TOKEN from environment automatically)
-        logger.info(f"[{job.job_id}] Loading base model for merge: {job.model_name}")
-        base_model = AutoModelForCausalLM.from_pretrained(
-            job.model_name,
-            torch_dtype=torch.float16,
-            device_map="cpu",
-            trust_remote_code=True,
-        )
-        tokenizer = AutoTokenizer.from_pretrained(job.model_name)
+        # Phase 1: Check/download model files (should be fast - already cached from training)
+        job.set_task_progress("merge_lora", 10)
+        model_path = self._download_model_files_for_merge(job, job.model_name)
+        model_id = model_path if model_path else job.model_name
+
+        # Phase 2: Load model into memory (25-40%)
+        # Start heartbeat for model loading (can take a long time for large models)
+        job.start_heartbeat("merge_lora", start_progress=25, end_progress=38, interval_seconds=10.0)
+
+        try:
+            # Load base model (uses HF_TOKEN from environment automatically)
+            logger.info(f"[{job.job_id}] Loading base model for merge: {model_id}")
+            base_model = AutoModelForCausalLM.from_pretrained(
+                model_id,
+                torch_dtype=torch.float16,
+                device_map="cpu",
+                trust_remote_code=True,
+            )
+            tokenizer = AutoTokenizer.from_pretrained(model_id)
+        finally:
+            job.stop_heartbeat()
 
         job.set_task_progress("merge_lora", 40)
 
@@ -1242,6 +1510,49 @@ Assistant:""",
         api_dir = Path(__file__).parent.parent  # /workspace/api
         project_root = api_dir.parent  # /workspace
         return project_root / ".llama.cpp"
+
+    def _parse_gguf_progress(self, line: str) -> int | None:
+        """Parse progress from convert_hf_to_gguf.py output.
+
+        Returns progress percentage (25-95) or None if no progress detected.
+        The output contains tqdm progress bars like:
+        - "Writing:  45%|████████████        | 1.80G/4.00G [00:37<00:45, 48.1Mbyte/s]"
+        - "Shard (1/2):  45%|████████████        | 900M/2.00G"
+        And log messages like:
+        - "INFO:gguf.gguf_writer:Writing tensors..."
+        """
+        import re
+
+        line_lower = line.lower().strip()
+
+        # Skip empty lines
+        if not line_lower:
+            return None
+
+        # Check for tqdm progress bar format: "Writing:  45%|" or "Shard (1/2):  45%|"
+        # tqdm format: "description:  XX%|progressbar| current/total"
+        tqdm_match = re.search(r":\s*(\d+(?:\.\d+)?)\s*%\s*\|", line)
+        if tqdm_match:
+            percent = float(tqdm_match.group(1))
+            # Map 0-100% to 30-95% of our progress range
+            return int(30 + (percent / 100) * 65)
+
+        # Check for percentage patterns like "50%", "50.0%", "[50%]"
+        percent_match = re.search(r"(\d+(?:\.\d+)?)\s*%", line)
+        if percent_match:
+            percent = float(percent_match.group(1))
+            # Map 0-100% to 30-95% of our progress range
+            return int(30 + (percent / 100) * 65)
+
+        # Check for phase indicators from logging
+        if "writing" in line_lower and ("tensor" in line_lower or "gguf" in line_lower):
+            return 30
+        if "loading" in line_lower and "model" in line_lower:
+            return 26
+        if "done" in line_lower or "finished" in line_lower or "complete" in line_lower:
+            return 95
+
+        return None
 
     def _convert_to_gguf(self, job: TrainingJob, model_path: Path, output_dir: Path) -> None:
         """Convert HuggingFace model to GGUF. Raises exception on failure."""
@@ -1301,14 +1612,94 @@ Assistant:""",
             output_quant,
         ]
 
-        job.set_task_progress("convert_gguf", 50)
+        job.set_task_progress("convert_gguf", 25)
+
+        # Timeout for the entire conversion process (30 minutes)
+        timeout_seconds = 1800
+        last_progress = 25
+        output_lines: list[str] = []
+
+        # Use Popen for streaming output
+        # Redirect stderr to stdout so we capture tqdm progress (which writes to stderr)
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,  # Merge stderr into stdout to capture tqdm progress
+            text=True,
+            bufsize=1,  # Line buffered
+        )
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            start_time = time.time()
+
+            # Read output line by line
+            while True:
+                # Check for timeout
+                elapsed = time.time() - start_time
+                if elapsed > timeout_seconds:
+                    process.kill()
+                    logger.error(f"[{job.job_id}] GGUF conversion timed out after {timeout_seconds}s")
+                    raise RuntimeError(f"GGUF conversion timed out after {timeout_seconds} seconds")
+
+                # Check if process has finished
+                retcode = process.poll()
+
+                # Try to read stdout (includes stderr due to STDOUT redirect)
+                if process.stdout:
+                    line = process.stdout.readline()
+                    if line:
+                        line_stripped = line.strip()
+                        if line_stripped:
+                            # Store output for error reporting
+                            output_lines.append(line_stripped)
+                            # Only log non-tqdm lines (tqdm lines contain progress bar characters)
+                            if "|" not in line or "%" not in line:
+                                logger.debug(f"[{job.job_id}] GGUF: {line_stripped}")
+
+                            # Parse progress from output
+                            progress = self._parse_gguf_progress(line_stripped)
+                            if progress is not None and progress > last_progress:
+                                job.set_task_progress("convert_gguf", progress)
+                                last_progress = progress
+                                logger.debug(f"[{job.job_id}] GGUF progress: {progress}%")
+
+                # If process finished and no more stdout, break
+                if retcode is not None:
+                    # Read any remaining output
+                    if process.stdout:
+                        remaining = process.stdout.read()
+                        if remaining:
+                            for line in remaining.strip().split("\n"):
+                                line_stripped = line.strip()
+                                if line_stripped:
+                                    output_lines.append(line_stripped)
+                                    # Parse remaining output for progress
+                                    progress = self._parse_gguf_progress(line_stripped)
+                                    if progress is not None and progress > last_progress:
+                                        job.set_task_progress("convert_gguf", progress)
+                                        last_progress = progress
+                    break
+
+                # Small sleep to prevent busy waiting
+                time.sleep(0.1)
+
+            # Check return code
+            if process.returncode != 0:
+                # Filter out tqdm lines from error output for readability
+                error_lines = [l for l in output_lines if "|" not in l or "%" not in l]
+                error_output = "\n".join(error_lines[-20:]) if error_lines else "Unknown error"
+                logger.error(f"[{job.job_id}] GGUF conversion failed: {error_output}")
+                raise RuntimeError(f"GGUF conversion failed: {error_output}")
+
             logger.info(f"[{job.job_id}] GGUF file created: {gguf_path}")
-        except subprocess.CalledProcessError as e:
-            logger.error(f"[{job.job_id}] GGUF conversion failed: {e.stderr}")
-            raise RuntimeError(f"GGUF conversion failed: {e.stderr}")
+            job.set_task_progress("convert_gguf", 100)
+
+        except Exception:
+            # Make sure to kill the process if something goes wrong
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+            raise
 
     def _create_modelfile(self, job: TrainingJob, output_dir: Path) -> None:
         """Create Ollama Modelfile with model-specific template."""
@@ -1426,6 +1817,9 @@ SYSTEM {mf_cfg["system"]}
         cmd = [ollama_path, "create", target_name, "-f", str(modelfile_path)]
         logger.info(f"[{job.job_id}] Running: {' '.join(cmd)}")
 
+        # Start heartbeat for ollama create (can take a while for large models)
+        job.start_heartbeat("register_ollama", start_progress=40, end_progress=95, interval_seconds=10.0)
+
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             logger.info(f"[{job.job_id}] Ollama output: {result.stdout}")
@@ -1434,6 +1828,8 @@ SYSTEM {mf_cfg["system"]}
         except subprocess.CalledProcessError as e:
             logger.error(f"[{job.job_id}] Ollama create failed: {e.stderr}")
             raise RuntimeError(f"Failed to register model in Ollama: {e.stderr}")
+        finally:
+            job.stop_heartbeat()
 
     def _handle_cancellation(self, job: TrainingJob) -> None:
         """Handle job cancellation."""

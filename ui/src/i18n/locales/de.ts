@@ -350,6 +350,7 @@ const de: TranslationSchema = {
         register_ollama: "Modell in Ollama registrieren",
       },
       taskWarnings: "{{count}} ungültige Zeile(n) übersprungen",
+      stillWorking: "Arbeite noch...",
       errorTitle: "Training fehlgeschlagen",
       completed: "Training abgeschlossen",
       completedDescription: "Dein Modell wurde erfolgreich erstellt. Prüfe den Output-Ordner für das Modelfile.",
