@@ -18,5 +18,6 @@ export * from "./dataFile";
 export * from "./huggingface";
 export * from "./model";
 export * from "./ollama";
+export * from "./preset";
 export * from "./project";
 export * from "./training";

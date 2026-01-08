@@ -32,6 +32,7 @@ import type {
   Project,
   QuantizationConfig,
   TrainingConfig,
+  TrainingPreset,
 } from "@/types";
 
 interface DocLinks {
@@ -63,6 +64,7 @@ export function useProjectConfig({ project, slug, models }: UseProjectConfigProp
   // Validation and UI state
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(true);
+  const [isPresetsOpen, setIsPresetsOpen] = useState(false);
   const [isTrainingParamsOpen, setIsTrainingParamsOpen] = useState(false);
   const [isLoraParamsOpen, setIsLoraParamsOpen] = useState(false);
   const [isQuantizationParamsOpen, setIsQuantizationParamsOpen] = useState(false);
@@ -458,6 +460,121 @@ export function useProjectConfig({ project, slug, models }: UseProjectConfigProp
     }
   }, [effectiveSelectedModel, effectiveTargetName, project, slug]);
 
+  // Apply preset configuration
+  const handleApplyPreset = useCallback(
+    async (preset: TrainingPreset) => {
+      // Build new training config from preset (only non-null values)
+      const newTrainingConfig: TrainingConfig = { ...effectiveTrainingConfig };
+      if (preset.training_config.num_train_epochs !== null) {
+        newTrainingConfig.num_train_epochs = preset.training_config.num_train_epochs;
+      }
+      if (preset.training_config.per_device_train_batch_size !== null) {
+        newTrainingConfig.per_device_train_batch_size = preset.training_config.per_device_train_batch_size;
+      }
+      if (preset.training_config.gradient_accumulation_steps !== null) {
+        newTrainingConfig.gradient_accumulation_steps = preset.training_config.gradient_accumulation_steps;
+      }
+      if (preset.training_config.learning_rate !== null) {
+        newTrainingConfig.learning_rate = preset.training_config.learning_rate;
+      }
+      if (preset.training_config.warmup_ratio !== null) {
+        newTrainingConfig.warmup_ratio = preset.training_config.warmup_ratio;
+      }
+      if (preset.training_config.max_length !== null) {
+        newTrainingConfig.max_length = preset.training_config.max_length;
+      }
+      if (preset.training_config.weight_decay !== null) {
+        newTrainingConfig.weight_decay = preset.training_config.weight_decay;
+      }
+      if (preset.training_config.max_grad_norm !== null) {
+        newTrainingConfig.max_grad_norm = preset.training_config.max_grad_norm;
+      }
+      if (preset.training_config.lr_scheduler_type !== null) {
+        newTrainingConfig.lr_scheduler_type = preset.training_config.lr_scheduler_type;
+      }
+      if (preset.training_config.neftune_noise_alpha !== null) {
+        newTrainingConfig.neftune_noise_alpha = preset.training_config.neftune_noise_alpha;
+      }
+
+      // Build new LoRA config from preset (only non-null values)
+      const newLoraConfig: LoraConfig = { ...effectiveLoraConfig };
+      if (preset.lora_config.r !== null) {
+        newLoraConfig.r = preset.lora_config.r;
+      }
+      if (preset.lora_config.lora_alpha !== null) {
+        newLoraConfig.lora_alpha = preset.lora_config.lora_alpha;
+      }
+      if (preset.lora_config.lora_dropout !== null) {
+        newLoraConfig.lora_dropout = preset.lora_config.lora_dropout;
+      }
+      if (preset.lora_config.target_modules !== null) {
+        newLoraConfig.target_modules = preset.lora_config.target_modules;
+      }
+      if (preset.lora_config.bias !== null) {
+        newLoraConfig.bias = preset.lora_config.bias;
+      }
+      if (preset.lora_config.use_rslora !== null) {
+        newLoraConfig.use_rslora = preset.lora_config.use_rslora;
+      }
+      if (preset.lora_config.use_dora !== null) {
+        newLoraConfig.use_dora = preset.lora_config.use_dora;
+      }
+      if (preset.lora_config.modules_to_save !== null) {
+        newLoraConfig.modules_to_save = preset.lora_config.modules_to_save;
+      }
+
+      // Build new quantization config from preset (only non-null values)
+      const newQuantizationConfig: QuantizationConfig = { ...effectiveQuantizationConfig };
+      if (preset.quantization_config.load_in_4bit !== null) {
+        newQuantizationConfig.load_in_4bit = preset.quantization_config.load_in_4bit;
+      }
+      if (preset.quantization_config.bnb_4bit_quant_type !== null) {
+        newQuantizationConfig.bnb_4bit_quant_type = preset.quantization_config.bnb_4bit_quant_type;
+      }
+      if (preset.quantization_config.bnb_4bit_use_double_quant !== null) {
+        newQuantizationConfig.bnb_4bit_use_double_quant = preset.quantization_config.bnb_4bit_use_double_quant;
+      }
+      if (preset.quantization_config.output_quantization !== null) {
+        newQuantizationConfig.output_quantization = preset.quantization_config.output_quantization;
+      }
+
+      // Update local state
+      setTrainingConfigOverride(newTrainingConfig);
+      setLoraConfigOverride(newLoraConfig);
+      setQuantizationConfigOverride(newQuantizationConfig);
+
+      // Clear validation errors
+      setValidationErrors({});
+
+      // Persist to project
+      if (project && slug) {
+        try {
+          await updateProject(slug, {
+            name: project.name,
+            description: project.description,
+            model: effectiveSelectedModel || null,
+            target_name: effectiveTargetName || null,
+            training_config: newTrainingConfig,
+            lora_config: newLoraConfig,
+            quantization_config: newQuantizationConfig,
+            modelfile_config: project.modelfile_config,
+          });
+        } catch {
+          // Silent fail
+        }
+      }
+    },
+    [
+      effectiveTrainingConfig,
+      effectiveLoraConfig,
+      effectiveQuantizationConfig,
+      effectiveSelectedModel,
+      effectiveTargetName,
+      project,
+      slug,
+    ]
+  );
+
   return {
     // Model selection
     combinedModels,
@@ -496,6 +613,8 @@ export function useProjectConfig({ project, slug, models }: UseProjectConfigProp
     docLinks,
     isHelpPanelOpen,
     setIsHelpPanelOpen,
+    isPresetsOpen,
+    setIsPresetsOpen,
     isTrainingParamsOpen,
     setIsTrainingParamsOpen,
     isLoraParamsOpen,
@@ -504,5 +623,8 @@ export function useProjectConfig({ project, slug, models }: UseProjectConfigProp
     setIsQuantizationParamsOpen,
     isModelfileParamsOpen,
     setIsModelfileParamsOpen,
+
+    // Presets
+    handleApplyPreset,
   };
 }

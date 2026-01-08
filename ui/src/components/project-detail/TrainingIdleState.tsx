@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { Sparkles } from "lucide-react";
+import { Rocket } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 interface TrainingIdleStateProps {
@@ -28,7 +28,7 @@ export function TrainingIdleState({ hasModel, hasFiles }: TrainingIdleStateProps
   return (
     <div className="flex-1 flex flex-col items-center justify-center py-8 text-center">
       <div className="rounded-full bg-primary/10 p-4 mb-4">
-        <Sparkles className="h-8 w-8 text-primary" />
+        <Rocket className="h-8 w-8 text-primary" />
       </div>
       <h3 className="text-lg font-medium mb-2">
         {t("training.status.idle")}

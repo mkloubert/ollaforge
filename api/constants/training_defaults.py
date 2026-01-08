@@ -101,4 +101,5 @@ TASK_IDS = [
     "merge_lora",
     "convert_gguf",
     "create_modelfile",
+    "register_ollama",
 ]

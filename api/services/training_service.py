@@ -560,6 +560,34 @@ class TrainingService:
             self._create_modelfile(job, output_dir)
             job.complete_task("create_modelfile")
 
+            if job.is_cancelled:
+                self._handle_cancellation(job)
+                return
+
+            # Task 11: Register in Ollama
+            job.set_task_status("register_ollama", TaskStatus.IN_PROGRESS)
+            try:
+                self._register_in_ollama(job, output_dir)
+            except FileNotFoundError as e:
+                job.fail_task("register_ollama")
+                job.error_code = ErrorCode.OLLAMA_NOT_INSTALLED
+                job.status = TrainingStatus.FAILED
+                logger.error(f"Ollama not found: {e}")
+                job.cleanup_cache()
+                return
+            except RuntimeError as e:
+                job.fail_task("register_ollama")
+                job.error_code = ErrorCode.OLLAMA_CREATE_FAILED
+                job.status = TrainingStatus.FAILED
+                logger.error(f"Ollama registration failed: {e}")
+                job.cleanup_cache()
+                return
+
+            if job.is_cancelled:
+                self._handle_cancellation(job)
+                return
+            job.complete_task("register_ollama")
+
             # Done
             job.status = TrainingStatus.COMPLETED
             job.progress = 100.0
@@ -795,11 +823,154 @@ class TrainingService:
         lora_config = LoraConfig(**lora_config_params)
         return get_peft_model(model, lora_config)
 
-    def _format_training_example(self, example: dict) -> str:
-        """Format a training example."""
+    def _get_model_family(self, model_name: str) -> str:
+        """
+        Detect the template family based on model name.
+        Returns: 'mistral', 'qwen', 'tinyllama', 'phi3', 'falcon', 'bloomz', 'smollm', or 'generic'
+        """
+        model_lower = model_name.lower()
+
+        # Mistral family (includes Mixtral)
+        if "mistral" in model_lower or "mixtral" in model_lower:
+            return "mistral"
+
+        # Qwen family
+        if "qwen" in model_lower:
+            return "qwen"
+
+        # TinyLlama Chat
+        if "tinyllama" in model_lower and "chat" in model_lower:
+            return "tinyllama"
+
+        # Phi-3 family
+        if "phi-3" in model_lower or "phi3" in model_lower:
+            return "phi3"
+
+        # Falcon family
+        if "falcon" in model_lower:
+            return "falcon"
+
+        # BLOOMZ family
+        if "bloomz" in model_lower:
+            return "bloomz"
+
+        # SmolLM family
+        if "smollm" in model_lower:
+            return "smollm"
+
+        return "generic"
+
+    def _format_training_example(self, example: dict, tokenizer, model_name: str) -> str:
+        """
+        Format a training example using the model's native chat template.
+        Falls back to generic format if chat template is not available.
+        """
         instruction = example.get("instruction", "")
         output = example.get("output", "")
+
+        model_family = self._get_model_family(model_name)
+
+        # For BLOOMZ and Falcon, use simple formats (no chat template)
+        if model_family == "bloomz":
+            # BLOOMZ uses simple task-oriented prompts
+            return f"{instruction}\n\n{output}"
+
+        if model_family == "falcon":
+            # Falcon uses simple User/Assistant format
+            return f"User: {instruction}\nAssistant: {output}"
+
+        # Try to use the tokenizer's chat template
+        try:
+            if hasattr(tokenizer, "apply_chat_template") and tokenizer.chat_template:
+                messages = [
+                    {"role": "user", "content": instruction},
+                    {"role": "assistant", "content": output},
+                ]
+                formatted = tokenizer.apply_chat_template(
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=False,
+                )
+                return formatted
+        except Exception as e:
+            logger.warning(f"Failed to apply chat template: {e}, using fallback format")
+
+        # Fallback to generic format
         return f"### Question:\n{instruction}\n\n### Answer:\n{output}"
+
+    def _get_model_stop_tokens(self, model_name: str) -> list[str]:
+        """
+        Get model-specific stop tokens for Ollama.
+        These tokens tell the model when to stop generating.
+        """
+        model_family = self._get_model_family(model_name)
+
+        stop_tokens = {
+            "mistral": ["</s>", "[INST]"],
+            "qwen": ["<|im_end|>", "<|endoftext|>"],
+            "tinyllama": ["</s>", "<|user|>"],
+            "phi3": ["<|end|>", "<|user|>"],
+            "falcon": ["User:", "\nUser"],
+            "bloomz": ["</s>"],
+            "smollm": ["<|im_end|>", "<|endoftext|>"],
+            "generic": ["### Question:", "</s>"],
+        }
+
+        return stop_tokens.get(model_family, stop_tokens["generic"])
+
+    def _get_ollama_template(self, model_name: str) -> str:
+        """
+        Get the Ollama TEMPLATE string for the model's native format.
+        This template is used during inference in Ollama.
+        """
+        model_family = self._get_model_family(model_name)
+
+        templates = {
+            # Mistral/Mixtral: [INST]...[/INST]
+            "mistral": "[INST] {{ .Prompt }} [/INST]",
+
+            # Qwen: ChatML format
+            "qwen": """<|im_start|>user
+{{ .Prompt }}<|im_end|>
+<|im_start|>assistant
+""",
+
+            # TinyLlama Chat: Zephyr style with system
+            "tinyllama": """<|system|>
+{{ .System }}</s>
+<|user|>
+{{ .Prompt }}</s>
+<|assistant|>
+""",
+
+            # Phi-3: Similar to Zephyr but with <|end|>
+            "phi3": """<|user|>
+{{ .Prompt }}<|end|>
+<|assistant|>
+""",
+
+            # Falcon: Simple User/Assistant
+            "falcon": """User: {{ .Prompt }}
+Assistant:""",
+
+            # BLOOMZ: Simple prompt
+            "bloomz": "{{ .Prompt }}",
+
+            # SmolLM: ChatML format
+            "smollm": """<|im_start|>user
+{{ .Prompt }}<|im_end|>
+<|im_start|>assistant
+""",
+
+            # Generic fallback
+            "generic": """### Question:
+{{ .Prompt }}
+
+### Answer:
+""",
+        }
+
+        return templates.get(model_family, templates["generic"])
 
     def _tokenize_dataset(self, job: TrainingJob, tokenizer, Dataset):
         """Load and tokenize training data with file status updates.
@@ -867,8 +1038,8 @@ class TrainingService:
                         job.increment_task_error_count("tokenize")
                         continue
 
-                    # Format and add to list
-                    all_texts.append(self._format_training_example(data))
+                    # Format and add to list using model's native chat template
+                    all_texts.append(self._format_training_example(data, tokenizer, job.model_name))
                     loaded_in_file += 1
 
             # Mark file as completed
@@ -1140,7 +1311,7 @@ class TrainingService:
             raise RuntimeError(f"GGUF conversion failed: {e.stderr}")
 
     def _create_modelfile(self, job: TrainingJob, output_dir: Path) -> None:
-        """Create Ollama Modelfile."""
+        """Create Ollama Modelfile with model-specific template."""
         # Find GGUF file
         gguf_files = list(output_dir.glob("model_v*.gguf"))
         if gguf_files:
@@ -1153,21 +1324,31 @@ class TrainingService:
         logger.info(f"[{job.job_id}] Modelfile config: temperature={mf_cfg['temperature']}, top_p={mf_cfg['top_p']}, top_k={mf_cfg['top_k']}")
         logger.info(f"[{job.job_id}] Modelfile config: repeat_penalty={mf_cfg['repeat_penalty']}, repeat_last_n={mf_cfg['repeat_last_n']}, num_ctx={mf_cfg['num_ctx']}")
 
-        # Build stop sequences
-        stop_params = "\n".join([f'PARAMETER stop "{s}"' for s in mf_cfg["stop"]])
+        # Get model-specific template and stop tokens
+        model_family = self._get_model_family(job.model_name)
+        ollama_template = self._get_ollama_template(job.model_name)
+        model_stop_tokens = self._get_model_stop_tokens(job.model_name)
+        logger.info(f"[{job.job_id}] Using template family: {model_family}")
+        logger.info(f"[{job.job_id}] Model stop tokens: {model_stop_tokens}")
+
+        # Combine model-specific stop tokens with user-configured ones (model tokens first)
+        all_stop_tokens = model_stop_tokens + [s for s in mf_cfg["stop"] if s not in model_stop_tokens]
+        stop_params = "\n".join([f'PARAMETER stop "{s}"' for s in all_stop_tokens])
+
+        # Escape the template for Modelfile format (triple quotes)
+        # Replace any existing triple quotes in template to avoid syntax issues
+        escaped_template = ollama_template.replace('"""', '\\"\\"\\"')
 
         modelfile_content = f"""# Modelfile for Ollama
 # Created: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 # Project: {job.project_slug}
+# Base model: {job.model_name}
+# Template family: {model_family}
 
 FROM {gguf_path.resolve()}
 
-# Template for question-answer format
-TEMPLATE \"\"\"### Question:
-{{{{ .Prompt }}}}
-
-### Answer:
-\"\"\"
+# Model-specific template for {model_family}
+TEMPLATE \"\"\"{escaped_template}\"\"\"
 
 # Parameters
 PARAMETER temperature {mf_cfg["temperature"]}
@@ -1187,6 +1368,72 @@ SYSTEM {mf_cfg["system"]}
             f.write(modelfile_content)
 
         logger.info(f"[{job.job_id}] Modelfile created: {modelfile_path}")
+
+    def _get_target_name(self, job: TrainingJob) -> str:
+        """Get the target model name for Ollama registration.
+
+        Priority:
+        1. If targetName is set in project.json, use it
+        2. Construct from base model name: <model-without-owner>-<project-slug>
+        """
+        project_file = job.project_path / "project.json"
+
+        try:
+            with open(project_file, "r", encoding="utf-8") as f:
+                project_data = json.load(f)
+
+                # Check for targetName in project.json
+                target_name = project_data.get("targetName", "").strip()
+                if target_name:
+                    return target_name
+
+                # Construct from base model name and slug
+                model = project_data.get("model", "").strip()
+                if not model:
+                    model = job.model_name
+
+                # Extract model name without owner (e.g., "unsloth/Llama-3.2-1B" -> "Llama-3.2-1B")
+                model_name = model.split("/")[-1] if "/" in model else model
+                return f"{model_name}-{job.project_slug}"
+
+        except Exception as e:
+            logger.warning(f"[{job.job_id}] Could not read project.json for target name: {e}")
+            # Fallback: construct from model_name
+            model_name = job.model_name.split("/")[-1] if "/" in job.model_name else job.model_name
+            return f"{model_name}-{job.project_slug}"
+
+    def _register_in_ollama(self, job: TrainingJob, output_dir: Path) -> None:
+        """Register the trained model in Ollama."""
+        # Find the Modelfile
+        modelfile_path = output_dir / "Modelfile"
+        if not modelfile_path.exists():
+            raise FileNotFoundError(f"Modelfile not found: {modelfile_path}")
+
+        # Get target name
+        target_name = self._get_target_name(job)
+        logger.info(f"[{job.job_id}] Registering model in Ollama as '{target_name}'")
+
+        job.set_task_progress("register_ollama", 20)
+
+        # Find ollama executable
+        ollama_path = shutil.which("ollama")
+        if ollama_path is None:
+            raise FileNotFoundError("Ollama is not installed or not in PATH")
+
+        job.set_task_progress("register_ollama", 40)
+
+        # Run ollama create
+        cmd = [ollama_path, "create", target_name, "-f", str(modelfile_path)]
+        logger.info(f"[{job.job_id}] Running: {' '.join(cmd)}")
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            logger.info(f"[{job.job_id}] Ollama output: {result.stdout}")
+            job.set_task_progress("register_ollama", 100)
+            logger.info(f"[{job.job_id}] Model '{target_name}' registered in Ollama successfully")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"[{job.job_id}] Ollama create failed: {e.stderr}")
+            raise RuntimeError(f"Failed to register model in Ollama: {e.stderr}")
 
     def _handle_cancellation(self, job: TrainingJob) -> None:
         """Handle job cancellation."""

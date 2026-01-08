@@ -17,8 +17,6 @@
 import axios from "axios";
 
 import type {
-  OllamaCreateRequest,
-  OllamaCreateResponse,
   OllamaModelExistsResponse,
   OllamaModelsResponse,
   OllamaRunResponse,
@@ -38,17 +36,6 @@ export async function checkModelExistsInOllama(
 ): Promise<OllamaModelExistsResponse> {
   const response = await axios.get<OllamaModelExistsResponse>(
     `${API_BASE}/api/projects/${slug}/ollama/exists`
-  );
-  return response.data;
-}
-
-export async function createModelInOllama(
-  slug: string,
-  request?: OllamaCreateRequest
-): Promise<OllamaCreateResponse> {
-  const response = await axios.post<OllamaCreateResponse>(
-    `${API_BASE}/api/projects/${slug}/ollama/create`,
-    request || {}
   );
   return response.data;
 }

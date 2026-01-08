@@ -22,8 +22,6 @@ from fastapi import APIRouter, HTTPException, status
 
 from error_codes import ErrorCode
 from models.ollama import (
-    OllamaCreateRequest,
-    OllamaCreateResponse,
     OllamaModelExistsResponse,
     OllamaModelsResponse,
     OllamaRunResponse,
@@ -84,26 +82,6 @@ def get_target_name_for_project(project_dir: Path, override: str | None = None) 
         )
 
 
-def find_latest_modelfile(project_dir: Path) -> Path | None:
-    """Find the latest Modelfile in the project's output directory."""
-    output_dir = project_dir / "output"
-
-    if not output_dir.exists():
-        return None
-
-    # Look for output/ollama/Modelfile first (standard location)
-    standard_modelfile = output_dir / "ollama" / "Modelfile"
-    if standard_modelfile.exists():
-        return standard_modelfile
-
-    # Search in run directories (output/run_*/ollama/Modelfile)
-    run_dirs = sorted(output_dir.glob("run_*/ollama/Modelfile"), reverse=True)
-    if run_dirs:
-        return run_dirs[0]
-
-    return None
-
-
 @router.get(
     "/ollama/models",
     response_model=OllamaModelsResponse,
@@ -139,41 +117,6 @@ async def check_model_exists(slug: str) -> OllamaModelExistsResponse:
     except OllamaServiceError as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"error_code": e.error_code},
-        )
-
-
-@router.post(
-    "/projects/{slug}/ollama/create",
-    response_model=OllamaCreateResponse,
-    summary="Create model in Ollama",
-    description="Create the trained model in Ollama using the generated Modelfile.",
-)
-async def create_ollama_model(
-    slug: str,
-    request: OllamaCreateRequest | None = None,
-) -> OllamaCreateResponse:
-    """Create the model in Ollama."""
-    project_dir = validate_project_exists(slug)
-    target_name = get_target_name_for_project(
-        project_dir,
-        request.target_name if request else None
-    )
-
-    # Find the Modelfile
-    modelfile_path = find_latest_modelfile(project_dir)
-    if modelfile_path is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error_code": ErrorCode.OLLAMA_MODELFILE_NOT_FOUND},
-        )
-
-    try:
-        await ollama_service.create_model(target_name, modelfile_path)
-        return OllamaCreateResponse(success=True, model_name=target_name)
-    except OllamaServiceError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error_code": e.error_code},
         )
 

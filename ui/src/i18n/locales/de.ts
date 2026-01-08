@@ -347,6 +347,7 @@ const de: TranslationSchema = {
         merge_lora: "LoRA mit Basismodell zusammenführen",
         convert_gguf: "In GGUF-Format konvertieren",
         create_modelfile: "Ollama-Modelfile erstellen",
+        register_ollama: "Modell in Ollama registrieren",
       },
       taskWarnings: "{{count}} ungültige Zeile(n) übersprungen",
       errorTitle: "Training fehlgeschlagen",
@@ -356,11 +357,123 @@ const de: TranslationSchema = {
     },
     ollama: {
       title: "Ollama-Integration",
-      createButton: "In Ollama erstellen",
       runButton: "In Ollama ausführen",
       modelName: "Modellname",
-      creating: "Erstelle Modell...",
       running: "Öffne Terminal...",
+    },
+    presets: {
+      title: "Training-Vorlagen",
+      description: "Schnellstart-Konfigurationen für verschiedene Anwendungsfälle. Wähle eine Vorlage aus, um deren Einstellungen anzuwenden.",
+      applyButton: "Anwenden",
+      applyConfirmTitle: "Vorlage anwenden?",
+      applyConfirmDescription: "Dies überschreibt deine aktuellen Training-, LoRA- und Quantisierungs-Einstellungen mit den Werten der Vorlage \"{{preset}}\". Diese Aktion kann nicht rückgängig gemacht werden.",
+      recommended: "Empfohlen",
+      allModels: "Alle Modelle",
+      balanced: {
+        name: "Ausgewogen",
+        description: "Gute Balance zwischen Geschwindigkeit und Qualität",
+        pros: {
+          versatile: "Funktioniert gut mit den meisten Modellen und Daten",
+          stable: "Stabiles Training mit bewährten Standardwerten",
+          good_defaults: "Guter Ausgangspunkt zum Experimentieren",
+        },
+        cons: {
+          not_specialized: "Nicht für spezielle Anwendungsfälle optimiert",
+          moderate_time: "Moderate Trainingszeit",
+        },
+      },
+      chat: {
+        name: "Chat / Konversation",
+        description: "Optimiert für Konversations-KI und Instruktionsbefolgung",
+        pros: {
+          natural_responses: "Natürlichere Konversationsantworten",
+          instruction_following: "Bessere Instruktionsbefolgung",
+          diverse_outputs: "Vielfältigere und kreativere Ausgaben",
+        },
+        cons: {
+          more_memory: "Höherer Speicherverbrauch",
+          longer_training: "Längere Trainingszeit",
+        },
+      },
+      code: {
+        name: "Code-Generierung",
+        description: "Optimiert für Programmierung und Code-Vervollständigung",
+        pros: {
+          precise_syntax: "Präzises Syntax-Lernen",
+          low_dropout: "Niedriger Dropout für Genauigkeit",
+          all_modules: "Zielt auf alle relevanten Schichten",
+        },
+        cons: {
+          more_memory: "Höherer Speicherverbrauch",
+          slower_training: "Langsamere Trainingsgeschwindigkeit",
+        },
+      },
+      fast: {
+        name: "Schnelle Iteration",
+        description: "Schnelles Training für schnelle Experimente",
+        pros: {
+          quick_results: "Schnelle Ergebnisse zum Testen",
+          low_memory: "Geringere Speicheranforderungen",
+          rapid_testing: "Ideal für schnelles Prototyping",
+        },
+        cons: {
+          lower_quality: "Niedrigere Ausgabequalität",
+          less_learning: "Weniger gründliches Lernen",
+        },
+      },
+      high_quality: {
+        name: "Hohe Qualität",
+        description: "Maximale Qualität auf Kosten der Trainingszeit",
+        pros: {
+          best_results: "Bestmögliche Ergebnisse",
+          thorough_learning: "Gründliches Training über mehr Epochen",
+          all_modules: "Umfassende Schichtabdeckung",
+        },
+        cons: {
+          long_training: "Lange Trainingszeit",
+          high_memory: "Hohe Speicheranforderungen",
+          needs_gpu: "Benötigt leistungsstarke GPU",
+        },
+      },
+      low_memory: {
+        name: "Wenig Speicher",
+        description: "Minimierter VRAM-Verbrauch für begrenzte Hardware",
+        pros: {
+          minimal_vram: "Minimaler VRAM-Verbrauch",
+          works_on_consumer: "Funktioniert auf Consumer-GPUs",
+          gradient_accumulation: "Effektive Gradientenakkumulation",
+        },
+        cons: {
+          slower_training: "Langsamere Trainingsgeschwindigkeit",
+          smaller_rank: "Kleinerer LoRA-Rang begrenzt Kapazität",
+        },
+      },
+      multilingual: {
+        name: "Mehrsprachig",
+        description: "Optimiert für mehrsprachige Modelle",
+        pros: {
+          language_diversity: "Erhält Sprachvielfalt",
+          balanced_learning: "Ausgewogenes sprachübergreifendes Lernen",
+          longer_warmup: "Verlängertes Aufwärmen für Sprachanpassung",
+        },
+        cons: {
+          needs_diverse_data: "Benötigt vielfältige Trainingsdaten",
+          moderate_time: "Moderate Trainingszeit",
+        },
+      },
+      reasoning: {
+        name: "Logik / Mathematik",
+        description: "Optimiert für logisches Denken und Mathematik",
+        pros: {
+          precise_learning: "Präzises und sorgfältiges Lernen",
+          low_dropout: "Niedriger Dropout für Konsistenz",
+          consistent_outputs: "Konsistentere Ausgaben",
+        },
+        cons: {
+          more_epochs: "Mehr Trainingsepochen erforderlich",
+          higher_rank: "Höherer Rang erhöht Speicherverbrauch",
+        },
+      },
     },
     errors: {
       ERR_PROJECT_1001: "Ein Projekt mit diesem Namen existiert bereits.",

@@ -15,11 +15,12 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { LoraConfig, ModelfileConfig, QuantizationConfig, TrainingConfig } from "@/types";
+import type { LoraConfig, Model, ModelfileConfig, QuantizationConfig, TrainingConfig, TrainingPreset } from "@/types";
 
 import { HelpPanel } from "./HelpPanel";
 import { LoraParamsSection } from "./LoraParamsSection";
 import { ModelfileParamsSection } from "./ModelfileParamsSection";
+import { PresetsSection } from "./PresetsSection";
 import { QuantizationParamsSection } from "./QuantizationParamsSection";
 import { TrainingParamsSection } from "./TrainingParamsSection";
 
@@ -35,6 +36,13 @@ interface AdvancedConfigTabProps {
   isHelpPanelOpen: boolean;
   onHelpPanelOpenChange: (open: boolean) => void;
   docLinks: DocLinks;
+  // Presets
+  isPresetsOpen: boolean;
+  onPresetsOpenChange: (open: boolean) => void;
+  selectedModel: string;
+  availableModels: Model[];
+  onApplyPreset: (preset: TrainingPreset) => void;
+  onModelSelect: (modelName: string) => void;
   // Training params
   isTrainingParamsOpen: boolean;
   onTrainingParamsOpenChange: (open: boolean) => void;
@@ -68,6 +76,12 @@ export function AdvancedConfigTab({
   isHelpPanelOpen,
   onHelpPanelOpenChange,
   docLinks,
+  isPresetsOpen,
+  onPresetsOpenChange,
+  selectedModel,
+  availableModels,
+  onApplyPreset,
+  onModelSelect,
   isTrainingParamsOpen,
   onTrainingParamsOpenChange,
   trainingConfig,
@@ -98,6 +112,16 @@ export function AdvancedConfigTab({
           isOpen={isHelpPanelOpen}
           onOpenChange={onHelpPanelOpenChange}
           docLinks={docLinks}
+        />
+
+        <PresetsSection
+          isOpen={isPresetsOpen}
+          onOpenChange={onPresetsOpenChange}
+          selectedModel={selectedModel}
+          availableModels={availableModels}
+          disabled={disabled}
+          onApplyPreset={onApplyPreset}
+          onModelSelect={onModelSelect}
         />
 
         <TrainingParamsSection

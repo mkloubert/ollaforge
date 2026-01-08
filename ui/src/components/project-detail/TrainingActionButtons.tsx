@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { Loader2, Package, Play, Rocket, StopCircle } from "lucide-react";
+import { Loader2, Play, Rocket, StopCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -24,33 +24,26 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { TrainingStatus } from "@/types";
 
 interface TrainingActionButtonsProps {
-  trainingStatus: TrainingStatus;
   isTrainingActive: boolean;
   isStarting: boolean;
   canStartTraining: boolean;
   ollamaModelExists: boolean;
-  isCreatingInOllama: boolean;
   isRunningInOllama: boolean;
   onStart: () => void;
   onCancel: () => void;
-  onCreateInOllama: () => void;
   onRunInOllama: () => void;
 }
 
 export function TrainingActionButtons({
-  trainingStatus,
   isTrainingActive,
   isStarting,
   canStartTraining,
   ollamaModelExists,
-  isCreatingInOllama,
   isRunningInOllama,
   onStart,
   onCancel,
-  onCreateInOllama,
   onRunInOllama,
 }: TrainingActionButtonsProps) {
   const { t } = useTranslation();
@@ -77,29 +70,6 @@ export function TrainingActionButtons({
             </TooltipTrigger>
             <TooltipContent>
               <p>{t("ollama.runButton")}</p>
-            </TooltipContent>
-          </Tooltip>
-        )}
-
-        {/* Create in Ollama Button - visible after successful training */}
-        {trainingStatus === "completed" && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="outline"
-                onClick={onCreateInOllama}
-                disabled={isCreatingInOllama}
-              >
-                {isCreatingInOllama ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Package className="h-4 w-4" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>{t("ollama.createButton")}</p>
             </TooltipContent>
           </Tooltip>
         )}

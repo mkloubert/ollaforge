@@ -343,6 +343,7 @@ export interface TranslationSchema {
         merge_lora: string;
         convert_gguf: string;
         create_modelfile: string;
+        register_ollama: string;
       };
       taskWarnings: string;
       errorTitle: string;
@@ -352,11 +353,123 @@ export interface TranslationSchema {
     };
     ollama: {
       title: string;
-      createButton: string;
       runButton: string;
       modelName: string;
-      creating: string;
       running: string;
+    };
+    presets: {
+      title: string;
+      description: string;
+      applyButton: string;
+      applyConfirmTitle: string;
+      applyConfirmDescription: string;
+      recommended: string;
+      allModels: string;
+      balanced: {
+        name: string;
+        description: string;
+        pros: {
+          versatile: string;
+          stable: string;
+          good_defaults: string;
+        };
+        cons: {
+          not_specialized: string;
+          moderate_time: string;
+        };
+      };
+      chat: {
+        name: string;
+        description: string;
+        pros: {
+          natural_responses: string;
+          instruction_following: string;
+          diverse_outputs: string;
+        };
+        cons: {
+          more_memory: string;
+          longer_training: string;
+        };
+      };
+      code: {
+        name: string;
+        description: string;
+        pros: {
+          precise_syntax: string;
+          low_dropout: string;
+          all_modules: string;
+        };
+        cons: {
+          more_memory: string;
+          slower_training: string;
+        };
+      };
+      fast: {
+        name: string;
+        description: string;
+        pros: {
+          quick_results: string;
+          low_memory: string;
+          rapid_testing: string;
+        };
+        cons: {
+          lower_quality: string;
+          less_learning: string;
+        };
+      };
+      high_quality: {
+        name: string;
+        description: string;
+        pros: {
+          best_results: string;
+          thorough_learning: string;
+          all_modules: string;
+        };
+        cons: {
+          long_training: string;
+          high_memory: string;
+          needs_gpu: string;
+        };
+      };
+      low_memory: {
+        name: string;
+        description: string;
+        pros: {
+          minimal_vram: string;
+          works_on_consumer: string;
+          gradient_accumulation: string;
+        };
+        cons: {
+          slower_training: string;
+          smaller_rank: string;
+        };
+      };
+      multilingual: {
+        name: string;
+        description: string;
+        pros: {
+          language_diversity: string;
+          balanced_learning: string;
+          longer_warmup: string;
+        };
+        cons: {
+          needs_diverse_data: string;
+          moderate_time: string;
+        };
+      };
+      reasoning: {
+        name: string;
+        description: string;
+        pros: {
+          precise_learning: string;
+          low_dropout: string;
+          consistent_outputs: string;
+        };
+        cons: {
+          more_epochs: string;
+          higher_rank: string;
+        };
+      };
     };
     errors: {
       ERR_PROJECT_1001: string;

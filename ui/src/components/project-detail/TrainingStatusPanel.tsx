@@ -41,11 +41,9 @@ interface TrainingStatusPanelProps {
   hasModel: boolean;
   hasFiles: boolean;
   ollamaModelExists: boolean;
-  isCreatingInOllama: boolean;
   isRunningInOllama: boolean;
   onStart: () => void;
   onCancel: () => void;
-  onCreateInOllama: () => void;
   onRunInOllama: () => void;
 }
 
@@ -59,11 +57,9 @@ export function TrainingStatusPanel({
   hasModel,
   hasFiles,
   ollamaModelExists,
-  isCreatingInOllama,
   isRunningInOllama,
   onStart,
   onCancel,
-  onCreateInOllama,
   onRunInOllama,
 }: TrainingStatusPanelProps) {
   const { t } = useTranslation();
@@ -82,16 +78,13 @@ export function TrainingStatusPanel({
             {t("training.title")}
           </CardTitle>
           <TrainingActionButtons
-            trainingStatus={trainingStatus}
             isTrainingActive={isTrainingActive}
             isStarting={isStarting}
             canStartTraining={canStartTraining}
             ollamaModelExists={ollamaModelExists}
-            isCreatingInOllama={isCreatingInOllama}
             isRunningInOllama={isRunningInOllama}
             onStart={onStart}
             onCancel={onCancel}
-            onCreateInOllama={onCreateInOllama}
             onRunInOllama={onRunInOllama}
           />
         </div>

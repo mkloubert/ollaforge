@@ -31,28 +31,6 @@ class OllamaModelsResponse(BaseModel):
     models: list[OllamaModel] = Field(default_factory=list, description="List of available models")
 
 
-class OllamaCreateRequest(BaseModel):
-    """Request to create a model in Ollama."""
-
-    target_name: str | None = Field(
-        default=None,
-        description="Custom name for the model in Ollama. If not provided, uses project's target_name or default."
-    )
-
-
-class OllamaCreateResponse(BaseModel):
-    """Response after creating a model in Ollama."""
-
-    success: bool = Field(..., description="Whether the model was created successfully")
-    model_name: str = Field(..., description="Name of the created model in Ollama")
-
-
-class OllamaRunRequest(BaseModel):
-    """Request to run a model in Ollama."""
-
-    model_name: str = Field(..., description="Name of the model to run in Ollama")
-
-
 class OllamaRunResponse(BaseModel):
     """Response after launching model in terminal."""
 

@@ -14,22 +14,15 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-export interface OllamaModel {
-  name: string;
-  size: string | null;
-  modified_at: string | null;
+import api from "./api";
+import type { TrainingPreset } from "@/types";
+
+export async function fetchPresets(): Promise<TrainingPreset[]> {
+  const response = await api.get<TrainingPreset[]>("/api/presets");
+  return response.data;
 }
 
-export interface OllamaModelsResponse {
-  models: OllamaModel[];
-}
-
-export interface OllamaRunResponse {
-  success: boolean;
-  model_name: string;
-}
-
-export interface OllamaModelExistsResponse {
-  exists: boolean;
-  model_name: string;
+export async function fetchPreset(presetId: string): Promise<TrainingPreset> {
+  const response = await api.get<TrainingPreset>(`/api/presets/${presetId}`);
+  return response.data;
 }

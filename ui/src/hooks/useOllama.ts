@@ -19,7 +19,6 @@ import axios from "axios";
 
 import {
   checkModelExistsInOllama,
-  createModelInOllama,
   runModelInOllama,
 } from "@/lib/ollama";
 
@@ -27,11 +26,9 @@ interface UseOllamaResult {
   modelExists: boolean;
   modelName: string | null;
   isChecking: boolean;
-  isCreating: boolean;
   isRunning: boolean;
   error: string | null;
   checkExists: () => Promise<void>;
-  create: () => Promise<boolean>;
   run: () => Promise<boolean>;
   clearError: () => void;
 }
@@ -40,7 +37,6 @@ export function useOllama(projectSlug: string | undefined): UseOllamaResult {
   const [modelExists, setModelExists] = useState(false);
   const [modelName, setModelName] = useState<string | null>(null);
   const [isChecking, setIsChecking] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,37 +73,6 @@ export function useOllama(projectSlug: string | undefined): UseOllamaResult {
     } finally {
       if (mountedRef.current) {
         setIsChecking(false);
-      }
-    }
-  }, [projectSlug]);
-
-  const create = useCallback(async (): Promise<boolean> => {
-    if (!projectSlug) return false;
-
-    setIsCreating(true);
-    setError(null);
-
-    try {
-      const response = await createModelInOllama(projectSlug);
-      if (mountedRef.current) {
-        setModelExists(true);
-        setModelName(response.model_name);
-      }
-      return true;
-    } catch (err) {
-      if (mountedRef.current) {
-        if (axios.isAxiosError(err) && err.response?.data?.detail?.error_code) {
-          setError(err.response.data.detail.error_code);
-        } else if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError("ERR_OLLAMA_6003");
-        }
-      }
-      return false;
-    } finally {
-      if (mountedRef.current) {
-        setIsCreating(false);
       }
     }
   }, [projectSlug]);
@@ -156,11 +121,9 @@ export function useOllama(projectSlug: string | undefined): UseOllamaResult {
     modelExists,
     modelName,
     isChecking,
-    isCreating,
     isRunning,
     error,
     checkExists,
-    create,
     run,
     clearError,
   };

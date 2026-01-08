@@ -84,10 +84,8 @@ export function ProjectDetailPage() {
   } = useTraining(slug);
   const {
     modelExists: ollamaModelExists,
-    isCreating: isCreatingInOllama,
     isRunning: isRunningInOllama,
     checkExists: checkOllamaExists,
-    create: createInOllama,
     run: runInOllama,
   } = useOllama(slug);
 
@@ -126,13 +124,6 @@ export function ProjectDetailPage() {
   const handleCancelTraining = useCallback(async () => {
     await cancelTraining();
   }, [cancelTraining]);
-
-  const handleCreateInOllama = useCallback(async () => {
-    const success = await createInOllama();
-    if (success) {
-      await checkOllamaExists();
-    }
-  }, [createInOllama, checkOllamaExists]);
 
   const handleRunInOllama = useCallback(async () => {
     await runInOllama();
@@ -259,7 +250,7 @@ export function ProjectDetailPage() {
         </Card>
 
         {/* Main Content - Left/Right Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(380px,480px)_1fr] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(400px,520px)_1fr] gap-6">
           {/* Left Side - Configuration */}
           <Card>
             <CardHeader>
@@ -302,6 +293,12 @@ export function ProjectDetailPage() {
                     isHelpPanelOpen={config.isHelpPanelOpen}
                     onHelpPanelOpenChange={config.setIsHelpPanelOpen}
                     docLinks={config.docLinks}
+                    isPresetsOpen={config.isPresetsOpen}
+                    onPresetsOpenChange={config.setIsPresetsOpen}
+                    selectedModel={config.effectiveSelectedModel}
+                    availableModels={models}
+                    onApplyPreset={config.handleApplyPreset}
+                    onModelSelect={config.handleModelChange}
                     isTrainingParamsOpen={config.isTrainingParamsOpen}
                     onTrainingParamsOpenChange={config.setIsTrainingParamsOpen}
                     trainingConfig={config.effectiveTrainingConfig}
@@ -341,11 +338,9 @@ export function ProjectDetailPage() {
             hasModel={config.effectiveSelectedModel !== ""}
             hasFiles={files.length > 0}
             ollamaModelExists={ollamaModelExists}
-            isCreatingInOllama={isCreatingInOllama}
             isRunningInOllama={isRunningInOllama}
             onStart={handleStartTraining}
             onCancel={handleCancelTraining}
-            onCreateInOllama={handleCreateInOllama}
             onRunInOllama={handleRunInOllama}
           />
         </div>
