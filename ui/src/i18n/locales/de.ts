@@ -82,6 +82,36 @@ const de: TranslationSchema = {
         invalidToken: "Ungültiges Token-Format. Token muss mit 'hf_' beginnen.",
       },
     },
+    llmProviders: {
+      title: "LLM-Anbieter",
+      status: {
+        allValid: "Alle Anbieter konfiguriert",
+        someInvalid: "Einige Anbieter nicht konfiguriert",
+        noneConfigured: "Keine Anbieter konfiguriert",
+        checking: "Prüfe...",
+        valid: "Gültig",
+        invalid: "Nicht konfiguriert",
+      },
+      providers: {
+        openai: "OpenAI",
+        anthropic: "Anthropic (Claude)",
+        mistral: "Mistral",
+      },
+      login: {
+        title: "{{provider}} konfigurieren",
+        description: "Gib deinen {{provider}} API-Schlüssel ein, um die Integration zu aktivieren.",
+        tokenLabel: "API-Schlüssel",
+        help: "Du benötigst einen API-Schlüssel, um {{provider}}-Funktionen zu nutzen.",
+        getToken: "Hol dir deinen API-Schlüssel hier",
+        submit: "Speichern",
+        submitting: "Speichere...",
+        success: "API-Schlüssel erfolgreich gespeichert!",
+      },
+      changeToken: "API-Schlüssel ändern",
+      errors: {
+        loginFailed: "API-Schlüssel konnte nicht gespeichert werden. Bitte überprüfe deinen Schlüssel.",
+      },
+    },
     projects: {
       title: "Projekte",
       empty: "Noch keine Projekte",
@@ -510,6 +540,11 @@ const de: TranslationSchema = {
       ERR_OLLAMA_6005: "Modelfile nicht gefunden. Bitte trainiere das Modell zuerst.",
       ERR_OLLAMA_6006: "Terminal konnte nicht geöffnet werden.",
       ERR_OLLAMA_6007: "Kein Basismodell konfiguriert. Bitte wähle zuerst ein Modell aus.",
+      ERR_LLM_8001: "Ungültiges API-Schlüssel-Format.",
+      ERR_LLM_8002: "API-Schlüssel abgelehnt. Bitte überprüfe deinen Schlüssel.",
+      ERR_LLM_8003: "Unbekannter Anbieter.",
+      ERR_LLM_8004: "Anbieter-API nicht erreichbar.",
+      ERR_LLM_8005: "API-Schlüssel konnte nicht gespeichert werden.",
       unknown: "Ein unerwarteter Fehler ist aufgetreten.",
     },
     validation: {

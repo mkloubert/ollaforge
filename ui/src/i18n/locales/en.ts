@@ -82,6 +82,36 @@ const en: TranslationSchema = {
         invalidToken: "Invalid token format. Token must start with 'hf_'.",
       },
     },
+    llmProviders: {
+      title: "LLM Providers",
+      status: {
+        allValid: "All providers configured",
+        someInvalid: "Some providers not configured",
+        noneConfigured: "No providers configured",
+        checking: "Checking...",
+        valid: "Valid",
+        invalid: "Not configured",
+      },
+      providers: {
+        openai: "OpenAI",
+        anthropic: "Anthropic (Claude)",
+        mistral: "Mistral",
+      },
+      login: {
+        title: "Configure {{provider}}",
+        description: "Enter your {{provider}} API key to enable integration.",
+        tokenLabel: "API Key",
+        help: "You need an API key to use {{provider}} features.",
+        getToken: "Get your API key here",
+        submit: "Save",
+        submitting: "Saving...",
+        success: "API key saved successfully!",
+      },
+      changeToken: "Change API key",
+      errors: {
+        loginFailed: "Failed to save API key. Please check your key.",
+      },
+    },
     projects: {
       title: "Projects",
       empty: "No projects yet",
@@ -510,6 +540,11 @@ const en: TranslationSchema = {
       ERR_OLLAMA_6005: "Modelfile not found. Please train the model first.",
       ERR_OLLAMA_6006: "Failed to open terminal.",
       ERR_OLLAMA_6007: "No base model configured. Please select a model first.",
+      ERR_LLM_8001: "Invalid API key format.",
+      ERR_LLM_8002: "API key rejected. Please check your key.",
+      ERR_LLM_8003: "Unknown provider.",
+      ERR_LLM_8004: "Could not reach provider API.",
+      ERR_LLM_8005: "Could not save API key.",
       unknown: "An unexpected error occurred.",
     },
     validation: {

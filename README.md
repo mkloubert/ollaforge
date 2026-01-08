@@ -12,6 +12,7 @@ A web application that simplifies training LLMs with your own data for use in Ol
 - **Advanced Configuration**: Customize training, LoRA, and quantization parameters
 - **Ollama Integration**: Create and run trained models directly in Ollama
 - **Hugging Face Integration**: Login to access gated models
+- **LLM Provider Integration**: Configure API keys for OpenAI, Anthropic (Claude), and Mistral
 - **Multi-language Support**: English and German UI
 - **Theme Support**: Light, dark, and system theme modes
 - **Cross-platform**: Windows, macOS, Linux, BSD
@@ -93,18 +94,18 @@ Upload JSONL files where each line is a JSON object:
 
 OllaForge includes 10 pre-configured instruct models that are chat-compatible after fine-tuning:
 
-| Model                                     | Size                | License    | Best For                        |
-| ----------------------------------------- | ------------------- | ---------- | ------------------------------- |
-| `bigscience/bloomz-560m`                  | 560M                | RAIL       | Multilingual (46 languages)     |
-| `HuggingFaceTB/SmolLM2-1.7B-Instruct`     | 1.7B                | Apache 2.0 | Edge/mobile, low resources      |
-| `TinyLlama/TinyLlama-1.1B-Chat-v1.0`      | 1.1B                | Apache 2.0 | Ultra-lightweight, quick tests  |
-| `Qwen/Qwen2.5-3B-Instruct`                | 3B                  | Apache 2.0 | Balanced size and capability    |
-| `microsoft/Phi-3-mini-4k-instruct`        | 3.8B                | MIT        | Reasoning, compact but powerful |
-| `mistralai/Mistral-7B-Instruct-v0.3`      | 7B                  | Apache 2.0 | General-purpose, strong baseline|
-| `tiiuae/falcon-7b-instruct`               | 7B                  | Apache 2.0 | Chat, QA, text generation       |
-| `Qwen/Qwen2.5-7B-Instruct`                | 7B                  | Apache 2.0 | Multilingual, long context      |
-| `Qwen/Qwen2.5-14B-Instruct`               | 14B                 | Apache 2.0 | Complex tasks, highest quality  |
-| `mistralai/Mixtral-8x7B-Instruct-v0.1`    | 46.7B (12.9B active)| Apache 2.0 | MoE, large model performance    |
+| Model                                  | Size                 | License    | Best For                         |
+| -------------------------------------- | -------------------- | ---------- | -------------------------------- |
+| `bigscience/bloomz-560m`               | 560M                 | RAIL       | Multilingual (46 languages)      |
+| `HuggingFaceTB/SmolLM2-1.7B-Instruct`  | 1.7B                 | Apache 2.0 | Edge/mobile, low resources       |
+| `TinyLlama/TinyLlama-1.1B-Chat-v1.0`   | 1.1B                 | Apache 2.0 | Ultra-lightweight, quick tests   |
+| `Qwen/Qwen2.5-3B-Instruct`             | 3B                   | Apache 2.0 | Balanced size and capability     |
+| `microsoft/Phi-3-mini-4k-instruct`     | 3.8B                 | MIT        | Reasoning, compact but powerful  |
+| `mistralai/Mistral-7B-Instruct-v0.3`   | 7B                   | Apache 2.0 | General-purpose, strong baseline |
+| `tiiuae/falcon-7b-instruct`            | 7B                   | Apache 2.0 | Chat, QA, text generation        |
+| `Qwen/Qwen2.5-7B-Instruct`             | 7B                   | Apache 2.0 | Multilingual, long context       |
+| `Qwen/Qwen2.5-14B-Instruct`            | 14B                  | Apache 2.0 | Complex tasks, highest quality   |
+| `mistralai/Mixtral-8x7B-Instruct-v0.1` | 46.7B (12.9B active) | Apache 2.0 | MoE, large model performance     |
 
 All models are instruction-tuned, ensuring trained models can be used for chat applications.
 
@@ -112,16 +113,16 @@ All models are instruction-tuned, ensuring trained models can be used for chat a
 
 The Advanced Settings tab includes 8 training presets for quick configuration:
 
-| Preset           | Description                                      | Recommended For              |
-| ---------------- | ------------------------------------------------ | ---------------------------- |
-| **Balanced**     | Good balance of speed and quality                | All models                   |
-| **Chat**         | Optimized for conversational AI                  | Mistral, Qwen, SmolLM        |
-| **Code**         | Optimized for programming and code completion    | Qwen, Mistral, Phi           |
-| **Fast**         | Quick training for rapid experimentation         | SmolLM, TinyLlama, BLOOMZ    |
-| **High Quality** | Maximum quality at cost of training time         | Qwen-14B, Mixtral, Mistral   |
-| **Low Memory**   | Minimized VRAM for limited hardware              | SmolLM, TinyLlama, BLOOMZ    |
-| **Multilingual** | Optimized for multilingual models                | Qwen, BLOOMZ                 |
-| **Reasoning**    | Optimized for logical reasoning and math         | Phi, Qwen                    |
+| Preset           | Description                                   | Recommended For            |
+| ---------------- | --------------------------------------------- | -------------------------- |
+| **Balanced**     | Good balance of speed and quality             | All models                 |
+| **Chat**         | Optimized for conversational AI               | Mistral, Qwen, SmolLM      |
+| **Code**         | Optimized for programming and code completion | Qwen, Mistral, Phi         |
+| **Fast**         | Quick training for rapid experimentation      | SmolLM, TinyLlama, BLOOMZ  |
+| **High Quality** | Maximum quality at cost of training time      | Qwen-14B, Mixtral, Mistral |
+| **Low Memory**   | Minimized VRAM for limited hardware           | SmolLM, TinyLlama, BLOOMZ  |
+| **Multilingual** | Optimized for multilingual models             | Qwen, BLOOMZ               |
+| **Reasoning**    | Optimized for logical reasoning and math      | Phi, Qwen                  |
 
 Each preset configures training parameters, LoRA settings, and quantization options. Presets show which models they work best with.
 
@@ -237,10 +238,10 @@ If a default port is in use, the application automatically finds an available po
 
 ### Presets
 
-| Method | Endpoint              | Description           |
-| ------ | --------------------- | --------------------- |
-| GET    | /api/presets          | List training presets |
-| GET    | /api/presets/{id}     | Get a specific preset |
+| Method | Endpoint          | Description           |
+| ------ | ----------------- | --------------------- |
+| GET    | /api/presets      | List training presets |
+| GET    | /api/presets/{id} | Get a specific preset |
 
 ### Hugging Face
 
@@ -248,6 +249,15 @@ If a default port is in use, the application automatically finds an available po
 | ------ | ----------------------- | ---------------- |
 | GET    | /api/huggingface/status | Get login status |
 | POST   | /api/huggingface/login  | Login with token |
+
+### LLM Providers
+
+| Method | Endpoint                  | Description                  |
+| ------ | ------------------------- | ---------------------------- |
+| GET    | /api/llm-providers/status | Get status of all providers  |
+| POST   | /api/llm-providers/login  | Save and validate an API key |
+
+Supported providers: `openai`, `anthropic`, `mistral`
 
 ### Ollama
 
@@ -300,6 +310,12 @@ python run.py --no-open --ui-port 8080 --api-port 8081
 | Variable               | Description                            | Default                                     |
 | ---------------------- | -------------------------------------- | ------------------------------------------- |
 | OLLAFORGE_CORS_ORIGINS | Allowed CORS origins (comma-separated) | http://localhost:5979,http://127.0.0.1:5979 |
+| HF_TOKEN               | Hugging Face token                     | -                                           |
+| OPENAI_API_KEY         | OpenAI API key                         | -                                           |
+| ANTHROPIC_API_KEY      | Anthropic (Claude) API key             | -                                           |
+| MISTRAL_API_KEY        | Mistral API key                        | -                                           |
+
+API keys can also be configured via the UI and are stored in `~/.ollaforge/`.
 
 ## Automatic Dependency Installation
 

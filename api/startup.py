@@ -65,7 +65,58 @@ def setup_hf_token() -> None:
     logger.info("No Hugging Face token configured")
 
 
+# LLM Provider configuration
+LLM_PROVIDER_CONFIG = {
+    "openai": {
+        "token_file": "openai_token",
+        "env_var": "OPENAI_API_KEY",
+    },
+    "anthropic": {
+        "token_file": "anthropic_token",
+        "env_var": "ANTHROPIC_API_KEY",
+    },
+    "mistral": {
+        "token_file": "mistral_token",
+        "env_var": "MISTRAL_API_KEY",
+    },
+}
+
+
+def setup_llm_provider_tokens() -> None:
+    """
+    Set up LLM provider API keys from stored token files on startup.
+    Only sets environment variables if they are not already set or are empty.
+    This enables integration with external LLM providers (OpenAI, Anthropic, Mistral).
+    """
+    config = get_config()
+
+    for provider, provider_config in LLM_PROVIDER_CONFIG.items():
+        env_var = provider_config["env_var"]
+        token_file_name = provider_config["token_file"]
+
+        # Skip if already set in environment
+        current_token = os.environ.get(env_var, "").strip()
+        if current_token:
+            logger.info(f"{env_var} already set in environment")
+            continue
+
+        # Try to load from stored token file
+        try:
+            token_file = config.ollaforge_dir / token_file_name
+            if token_file.exists():
+                token = token_file.read_text().strip()
+                if token:
+                    os.environ[env_var] = token
+                    logger.info(f"{env_var} set from stored token file")
+                    continue
+        except Exception as e:
+            logger.warning(f"Error reading {provider} token file: {e}")
+
+        logger.debug(f"No {provider} API key configured")
+
+
 def run_startup_tasks() -> None:
     """Run all startup tasks."""
     ensure_directories()
     setup_hf_token()
+    setup_llm_provider_tokens()

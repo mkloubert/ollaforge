@@ -45,10 +45,10 @@ def strip_ansi_codes(text: str) -> str:
 def get_stored_token() -> str | None:
     """
     Get the stored Hugging Face token.
-    Priority: OLLAFORGE_HF_TOKEN env var > stored token file
+    Priority: HF_TOKEN env var > stored token file
     """
     # 1. Check environment variable first
-    env_token = os.environ.get("OLLAFORGE_HF_TOKEN")
+    env_token = os.environ.get("HF_TOKEN")
     if env_token:
         return env_token.strip()
 

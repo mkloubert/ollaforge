@@ -14,11 +14,29 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-export * from "./dataFile";
-export * from "./huggingface";
-export * from "./llmProvider";
-export * from "./model";
-export * from "./ollama";
-export * from "./preset";
-export * from "./project";
-export * from "./training";
+import api from "./api";
+import type {
+  LLMProviderLoginRequest,
+  LLMProviderLoginResponse,
+  LLMProvidersStatusResponse,
+  LLMProviderType,
+} from "@/types";
+
+export async function getLLMProvidersStatus(): Promise<LLMProvidersStatusResponse> {
+  const response = await api.get<LLMProvidersStatusResponse>(
+    "/api/llm-providers/status"
+  );
+  return response.data;
+}
+
+export async function loginLLMProvider(
+  provider: LLMProviderType,
+  token: string
+): Promise<LLMProviderLoginResponse> {
+  const request: LLMProviderLoginRequest = { provider, token };
+  const response = await api.post<LLMProviderLoginResponse>(
+    "/api/llm-providers/login",
+    request
+  );
+  return response.data;
+}

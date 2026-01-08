@@ -3,6 +3,7 @@ aiofiles>=23.0.0
 bitsandbytes>=0.42.0
 datasets>=2.16.0
 fastapi>=0.109.0
+httpx>=0.28.0
 huggingface_hub>=0.20.0
 peft>=0.8.0
 python-multipart>=0.0.6

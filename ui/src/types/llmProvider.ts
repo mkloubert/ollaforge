@@ -14,11 +14,25 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-export * from "./dataFile";
-export * from "./huggingface";
-export * from "./llmProvider";
-export * from "./model";
-export * from "./ollama";
-export * from "./preset";
-export * from "./project";
-export * from "./training";
+export type LLMProviderType = "openai" | "anthropic" | "mistral";
+
+export interface LLMProviderStatus {
+  provider: LLMProviderType;
+  valid: boolean;
+  configured: boolean;
+}
+
+export interface LLMProvidersStatusResponse {
+  providers: LLMProviderStatus[];
+}
+
+export interface LLMProviderLoginRequest {
+  provider: LLMProviderType;
+  token: string;
+}
+
+export interface LLMProviderLoginResponse {
+  success: boolean;
+  provider: LLMProviderType;
+  error_code: string | null;
+}

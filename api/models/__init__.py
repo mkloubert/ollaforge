@@ -15,6 +15,13 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from models.data_file import DataFileInfo, UploadDataFileResponse, format_file_size
+from models.llm_provider import (
+    LLMProviderLoginRequest,
+    LLMProviderLoginResponse,
+    LLMProvidersStatusResponse,
+    LLMProviderStatus,
+    LLMProviderType,
+)
 from models.model import ModelInfo
 from models.project import (
     CreateProjectRequest,
@@ -40,6 +47,11 @@ __all__ = [
     "DeviceType",
     "ErrorResponse",
     "format_file_size",
+    "LLMProviderLoginRequest",
+    "LLMProviderLoginResponse",
+    "LLMProvidersStatusResponse",
+    "LLMProviderStatus",
+    "LLMProviderType",
     "ModelInfo",
     "ProjectInfo",
     "StartTrainingRequest",

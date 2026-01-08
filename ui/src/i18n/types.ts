@@ -79,6 +79,36 @@ export interface TranslationSchema {
         invalidToken: string;
       };
     };
+    llmProviders: {
+      title: string;
+      status: {
+        allValid: string;
+        someInvalid: string;
+        noneConfigured: string;
+        checking: string;
+        valid: string;
+        invalid: string;
+      };
+      providers: {
+        openai: string;
+        anthropic: string;
+        mistral: string;
+      };
+      login: {
+        title: string;
+        description: string;
+        tokenLabel: string;
+        help: string;
+        getToken: string;
+        submit: string;
+        submitting: string;
+        success: string;
+      };
+      changeToken: string;
+      errors: {
+        loginFailed: string;
+      };
+    };
     projects: {
       title: string;
       empty: string;
@@ -506,6 +536,11 @@ export interface TranslationSchema {
       ERR_OLLAMA_6005: string;
       ERR_OLLAMA_6006: string;
       ERR_OLLAMA_6007: string;
+      ERR_LLM_8001: string;
+      ERR_LLM_8002: string;
+      ERR_LLM_8003: string;
+      ERR_LLM_8004: string;
+      ERR_LLM_8005: string;
       unknown: string;
     };
     validation: {

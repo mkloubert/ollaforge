@@ -22,6 +22,7 @@ import { SiHuggingface } from "react-icons/si";
 
 import { HuggingFaceLoginDialog } from "@/components/huggingface-login-dialog";
 import { LanguageSwitch } from "@/components/language-switch";
+import { LLMProvidersButton } from "@/components/llm-providers-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,6 +70,9 @@ export function Header() {
         </Link>
 
         <div className="flex flex-1 items-center justify-end gap-1">
+          {/* LLM Providers Button */}
+          <LLMProvidersButton />
+
           {/* Hugging Face Status Button */}
           {isLoading ? (
             <Button variant="ghost" size="icon" disabled>

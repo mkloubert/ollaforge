@@ -33,6 +33,7 @@ from config import init_config, get_config
 from routers.data_files import router as data_files_router
 from routers.health import router as health_router
 from routers.huggingface import router as huggingface_router
+from routers.llm_providers import router as llm_providers_router
 from routers.models import router as models_router
 from routers.ollama import router as ollama_router
 from routers.presets import router as presets_router
@@ -85,6 +86,7 @@ def create_app() -> FastAPI:
     application.include_router(data_files_router)
     application.include_router(health_router)
     application.include_router(huggingface_router)
+    application.include_router(llm_providers_router)
     application.include_router(models_router)
     application.include_router(ollama_router)
     application.include_router(presets_router)
