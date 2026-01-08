@@ -30,6 +30,7 @@ def main():
         host=args.host,
         port=args.port,
         reload=True,
+        timeout_keep_alive=300,  # 5 minutes for long-running LLM requests
     )
 
 

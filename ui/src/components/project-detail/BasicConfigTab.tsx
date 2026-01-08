@@ -22,6 +22,8 @@ import { ModelSelector } from "./ModelSelector";
 import { TargetNameInput } from "./TargetNameInput";
 
 interface BasicConfigTabProps {
+  // Project
+  projectSlug: string;
   // Model selection
   models: Model[];
   selectedModel: string;
@@ -40,11 +42,13 @@ interface BasicConfigTabProps {
   onUpload: (file: File) => Promise<boolean>;
   onDelete: (filename: string) => Promise<void>;
   onPreview: (filename: string) => void;
+  onRefreshFiles?: () => void;
   // Common
   isTrainingActive: boolean;
 }
 
 export function BasicConfigTab({
+  projectSlug,
   models,
   selectedModel,
   onModelChange,
@@ -60,6 +64,7 @@ export function BasicConfigTab({
   onUpload,
   onDelete,
   onPreview,
+  onRefreshFiles,
   isTrainingActive,
 }: BasicConfigTabProps) {
   return (
@@ -82,6 +87,7 @@ export function BasicConfigTab({
       <Separator />
 
       <DataFilesSection
+        projectSlug={projectSlug}
         files={files}
         filesLoading={filesLoading}
         isUploading={isUploading}
@@ -91,6 +97,7 @@ export function BasicConfigTab({
         onUpload={onUpload}
         onDelete={onDelete}
         onPreview={onPreview}
+        onRefresh={onRefreshFiles}
       />
     </div>
   );

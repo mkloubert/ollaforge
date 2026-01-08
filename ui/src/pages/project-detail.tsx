@@ -70,7 +70,7 @@ export function ProjectDetailPage() {
   // Data hooks
   const { project, isLoading, error, notFound, refetch } = useProject(slug);
   const { models, isLoading: modelsLoading } = useModels();
-  const { files, isLoading: filesLoading, isUploading, upload, remove } = useDataFiles(slug);
+  const { files, isLoading: filesLoading, isUploading, upload, remove, refetch: refetchFiles } = useDataFiles(slug);
   const {
     status: trainingStatus,
     progress: trainingProgress,
@@ -269,6 +269,7 @@ export function ProjectDetailPage() {
 
                 <TabsContent value="basic" className="mt-4">
                   <BasicConfigTab
+                    projectSlug={slug!}
                     models={config.combinedModels}
                     selectedModel={config.effectiveSelectedModel}
                     onModelChange={config.handleModelChange}
@@ -284,6 +285,7 @@ export function ProjectDetailPage() {
                     onUpload={upload}
                     onDelete={fileManagement.handleDelete}
                     onPreview={fileManagement.handlePreview}
+                    onRefreshFiles={refetchFiles}
                     isTrainingActive={isTrainingActive}
                   />
                 </TabsContent>

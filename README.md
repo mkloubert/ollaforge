@@ -6,6 +6,7 @@ A web application that simplifies training LLMs with your own data for use in Ol
 
 - **Project Management**: Create, edit, and delete training projects
 - **Training Data**: Upload JSONL files with instruction/output pairs
+- **AI Training Data Generation**: Generate training data from text files using OpenAI, Anthropic, or Mistral
 - **Model Training**: Fine-tune LLMs using QLoRA with automatic GGUF conversion
 - **10 Pre-configured Models**: Curated selection of chat-compatible instruct models
 - **8 Training Presets**: Quick-start configurations for different use cases
@@ -89,6 +90,20 @@ Upload JSONL files where each line is a JSON object:
 {"instruction": "What is the capital of France?", "output": "The capital of France is Paris."}
 {"instruction": "Translate 'Hello' to German", "output": "Hallo"}
 ```
+
+### Generate Training Data from Sources
+
+OllaForge can automatically generate training data from your existing documents using LLM APIs. This feature requires at least one LLM provider (OpenAI, Anthropic, or Mistral) to be configured.
+
+1. **Configure an LLM Provider**: Click the provider buttons in the header and enter your API key
+2. **Open the Generator**: In your project, click "Generate from Sources" button
+3. **Add Data Sources**: Upload text files (.txt, .md, .html, .json, .csv, .xml) or paste text directly
+4. **Select Provider and Model**: Choose which LLM to use for generation
+5. **Generate**: Click "Generate" to create instruction/output pairs from your sources
+6. **Edit Results**: Review and edit the generated data in the table
+7. **Save**: Enter a filename and save as a JSONL file
+
+The generated training data is based only on information in your source documents. The LLM extracts facts and creates diverse question-answer pairs in the same language as the source text.
 
 ### Supported Base Models
 
@@ -215,12 +230,14 @@ If a default port is in use, the application automatically finds an available po
 
 ### Data Files
 
-| Method | Endpoint                                   | Description        |
-| ------ | ------------------------------------------ | ------------------ |
-| GET    | /api/projects/{slug}/data-files            | List data files    |
-| POST   | /api/projects/{slug}/data-files            | Upload a data file |
-| DELETE | /api/projects/{slug}/data-files/{filename} | Delete a data file |
-| GET    | /api/projects/{slug}/data-files/{filename} | Get file content   |
+| Method | Endpoint                                    | Description                      |
+| ------ | ------------------------------------------- | -------------------------------- |
+| GET    | /api/projects/{slug}/data-files             | List data files                  |
+| POST   | /api/projects/{slug}/data-files             | Upload a data file               |
+| DELETE | /api/projects/{slug}/data-files/{filename}  | Delete a data file               |
+| GET    | /api/projects/{slug}/data-files/{filename}  | Get file content                 |
+| POST   | /api/projects/{slug}/generate-training-data | Generate training data using LLM |
+| POST   | /api/projects/{slug}/data/save-generated    | Save generated data as JSONL     |
 
 ### Training
 

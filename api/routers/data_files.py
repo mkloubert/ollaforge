@@ -27,6 +27,8 @@ from models.data_file import (
     DataFileContentResponse,
     DataFileInfo,
     DataFileRow,
+    SaveGeneratedDataRequest,
+    SaveGeneratedDataResponse,
     UploadDataFileResponse,
     format_file_size,
 )
@@ -335,4 +337,97 @@ async def get_data_file_content(slug: str, filename: str) -> DataFileContentResp
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error_code": ErrorCode.DATA_FILE_READ_FAILED},
+        )
+
+
+def validate_generated_filename(filename: str) -> str | None:
+    """
+    Validate and sanitize filename for generated data.
+    Only allows alphanumeric characters, hyphens, and underscores.
+
+    Returns sanitized filename or None if invalid.
+    """
+    if not filename:
+        return None
+
+    # Remove any extension if provided
+    if filename.endswith(".jsonl"):
+        filename = filename[:-6]
+
+    # Only allow alphanumeric, hyphen, underscore
+    if not re.match(r"^[a-zA-Z0-9_-]+$", filename):
+        return None
+
+    return filename
+
+
+def generate_unique_jsonl_filename(data_dir: Path, base_filename: str) -> str:
+    """
+    Generate a unique JSONL filename.
+    If file exists, appends -1, -2, etc. until unique.
+    """
+    filename = f"{base_filename}.jsonl"
+    target_path = data_dir / filename
+
+    if not target_path.exists():
+        return filename
+
+    counter = 1
+    while True:
+        filename = f"{base_filename}-{counter}.jsonl"
+        target_path = data_dir / filename
+        if not target_path.exists():
+            return filename
+        counter += 1
+
+
+@router.post(
+    "/{slug}/data/save-generated",
+    response_model=SaveGeneratedDataResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Save generated training data",
+    description="Save generated training data as a JSONL file in the project's data directory.",
+)
+async def save_generated_data(
+    slug: str, request: SaveGeneratedDataRequest
+) -> SaveGeneratedDataResponse:
+    """Save generated training data as JSONL file."""
+    validate_project_exists(slug)
+
+    # Validate filename
+    safe_filename = validate_generated_filename(request.filename)
+    if not safe_filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error_code": ErrorCode.SAVE_INVALID_FILENAME.value},
+        )
+
+    data_dir = get_project_data_dir(slug)
+
+    try:
+        # Create data directory if it doesn't exist
+        data_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate unique filename
+        final_filename = generate_unique_jsonl_filename(data_dir, safe_filename)
+        target_path = data_dir / final_filename
+
+        # Write JSONL file
+        async with aiofiles.open(target_path, "w", encoding="utf-8") as f:
+            for row in request.rows:
+                json_line = json.dumps(
+                    {"instruction": row.instruction, "output": row.output},
+                    ensure_ascii=False,
+                )
+                await f.write(json_line + "\n")
+
+        return SaveGeneratedDataResponse(
+            filename=final_filename,
+            rows_saved=len(request.rows),
+        )
+
+    except OSError:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error_code": ErrorCode.SAVE_FAILED.value},
         )

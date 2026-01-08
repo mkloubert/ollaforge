@@ -109,6 +109,54 @@ export interface TranslationSchema {
         loginFailed: string;
       };
     };
+    generateFromSources: {
+      title: string;
+      button: string;
+      buttonDisabled: string;
+      sources: {
+        title: string;
+        uploadFile: string;
+        uploadHint: string;
+        addText: string;
+        textPlaceholder: string;
+        empty: string;
+        estimatedTokens: string;
+        totalTokens: string;
+        sourcesCount: string;
+        acceptedFormats: string;
+        tokenLimitWarning: string;
+      };
+      llm: {
+        selectModel: string;
+        contextInfo: string;
+        generate: string;
+        generating: string;
+        progress: string;
+      };
+      results: {
+        title: string;
+        empty: string;
+        instruction: string;
+        output: string;
+        addRow: string;
+        deleteRow: string;
+        validRows: string;
+        generated: string;
+      };
+      save: {
+        title: string;
+        filename: string;
+        save: string;
+        saving: string;
+        success: string;
+      };
+      errors: {
+        emptyCell: string;
+        invalidFilename: string;
+        noData: string;
+        invalidRows: string;
+      };
+    };
     projects: {
       title: string;
       empty: string;
@@ -541,6 +589,17 @@ export interface TranslationSchema {
       ERR_LLM_8003: string;
       ERR_LLM_8004: string;
       ERR_LLM_8005: string;
+      ERR_DATA_SOURCE_9001: string;
+      ERR_DATA_SOURCE_9002: string;
+      ERR_DATA_SOURCE_9003: string;
+      ERR_GENERATION_9101: string;
+      ERR_GENERATION_9102: string;
+      ERR_GENERATION_9103: string;
+      ERR_GENERATION_9104: string;
+      ERR_GENERATION_9105: string;
+      ERR_GENERATION_9106: string;
+      ERR_SAVE_9201: string;
+      ERR_SAVE_9202: string;
       unknown: string;
     };
     validation: {

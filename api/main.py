@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 from config import init_config, get_config
 from routers.data_files import router as data_files_router
+from routers.data_sources import router as data_sources_router
 from routers.health import router as health_router
 from routers.huggingface import router as huggingface_router
 from routers.llm_providers import router as llm_providers_router
@@ -84,6 +85,7 @@ def create_app() -> FastAPI:
     )
 
     application.include_router(data_files_router)
+    application.include_router(data_sources_router)
     application.include_router(health_router)
     application.include_router(huggingface_router)
     application.include_router(llm_providers_router)

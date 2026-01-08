@@ -53,6 +53,27 @@ class DataFileContentResponse(BaseModel):
     truncated: bool = Field(..., description="Whether the result was truncated")
 
 
+class SaveGeneratedDataRow(BaseModel):
+    """A single row of generated training data to save."""
+
+    instruction: str = Field(..., min_length=1, description="The instruction/question")
+    output: str = Field(..., min_length=1, description="The expected output/answer")
+
+
+class SaveGeneratedDataRequest(BaseModel):
+    """Request to save generated training data as JSONL file."""
+
+    filename: str = Field(..., min_length=1, description="Desired filename (without .jsonl extension)")
+    rows: list[SaveGeneratedDataRow] = Field(..., min_length=1, description="Training data rows to save")
+
+
+class SaveGeneratedDataResponse(BaseModel):
+    """Response after saving generated training data."""
+
+    filename: str = Field(..., description="The final filename (may include suffix for uniqueness)")
+    rows_saved: int = Field(..., description="Number of rows saved to the file")
+
+
 def format_file_size(size_bytes: int) -> str:
     """
     Format file size to human-readable string.

@@ -23,7 +23,16 @@ from fastapi import APIRouter
 
 from config import get_config
 from error_codes import ErrorCode
+from constants.llm_models import (
+    get_default_model,
+    get_model_by_id,
+    get_models_for_provider,
+    LLMModel,
+)
 from models.llm_provider import (
+    AllLLMModelsResponse,
+    LLMModelInfo,
+    LLMModelsResponse,
     LLMProviderLoginRequest,
     LLMProviderLoginResponse,
     LLMProvidersStatusResponse,
@@ -290,3 +299,44 @@ async def login_llm_provider(request: LLMProviderLoginRequest) -> LLMProviderLog
             provider=provider,
             error_code=ErrorCode.LLM_PROVIDER_AUTH_FAILED.value,
         )
+
+
+def _model_to_info(model: LLMModel) -> LLMModelInfo:
+    """Convert an LLMModel dataclass to LLMModelInfo Pydantic model."""
+    return LLMModelInfo(
+        id=model.id,
+        name=model.name,
+        context_window=model.context_window,
+        max_output=model.max_output,
+        input_price=model.input_price,
+        output_price=model.output_price,
+        supports_structured=model.supports_structured,
+        is_default=model.is_default,
+    )
+
+
+@router.get("/models", response_model=AllLLMModelsResponse)
+async def get_all_llm_models() -> AllLLMModelsResponse:
+    """
+    Get all available LLM models grouped by provider.
+    Returns hardcoded model configurations with token limits and pricing.
+    """
+    providers_models: dict[str, list[LLMModelInfo]] = {}
+
+    for provider in LLMProviderType:
+        models = get_models_for_provider(provider)
+        providers_models[provider.value] = [_model_to_info(m) for m in models]
+
+    return AllLLMModelsResponse(providers=providers_models)
+
+
+@router.get("/models/{provider}", response_model=LLMModelsResponse)
+async def get_provider_models(provider: LLMProviderType) -> LLMModelsResponse:
+    """
+    Get available models for a specific LLM provider.
+    Returns model configurations with token limits and pricing.
+    """
+    models = get_models_for_provider(provider)
+    model_infos = [_model_to_info(m) for m in models]
+
+    return LLMModelsResponse(provider=provider, models=model_infos)

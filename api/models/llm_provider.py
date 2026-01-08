@@ -60,3 +60,31 @@ class LLMProviderLoginResponse(BaseModel):
     success: bool = Field(..., description="Whether the login was successful")
     provider: LLMProviderType = Field(..., description="The LLM provider that was logged into")
     error_code: str | None = Field(None, description="Error code if login failed")
+
+
+class LLMModelInfo(BaseModel):
+    """Information about an LLM model."""
+
+    id: str = Field(..., description="The model ID used for API calls")
+    name: str = Field(..., description="Human-readable display name")
+    context_window: int = Field(..., description="Maximum input tokens")
+    max_output: int = Field(..., description="Maximum output tokens")
+    input_price: float = Field(..., description="Price per 1M input tokens in USD")
+    output_price: float = Field(..., description="Price per 1M output tokens in USD")
+    supports_structured: bool = Field(..., description="Whether model supports structured output")
+    is_default: bool = Field(..., description="Whether this is the default model for the provider")
+
+
+class LLMModelsResponse(BaseModel):
+    """Response containing available models for a provider."""
+
+    provider: LLMProviderType = Field(..., description="The LLM provider")
+    models: list[LLMModelInfo] = Field(..., description="List of available models")
+
+
+class AllLLMModelsResponse(BaseModel):
+    """Response containing all available models grouped by provider."""
+
+    providers: dict[str, list[LLMModelInfo]] = Field(
+        ..., description="Models grouped by provider type"
+    )
