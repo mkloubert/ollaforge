@@ -14,7 +14,7 @@ A web application that simplifies training LLMs with your own data for use in Ol
 - **Ollama Integration**: Create and run trained models directly in Ollama
 - **Hugging Face Integration**: Login to access gated models
 - **LLM Provider Integration**: Configure API keys for OpenAI, Anthropic (Claude), and Mistral
-- **Multi-language Support**: English and German UI
+- **Multi-language Support**: 17 languages (English, German, Spanish, French, Portuguese, Ukrainian, Chinese, Japanese, Korean, Arabic, Hindi, Italian, Dutch, Polish, Greek, Turkish, Hebrew)
 - **Theme Support**: Light, dark, and system theme modes
 - **Cross-platform**: Windows, macOS, Linux, BSD
 - **Automatic Setup**: Dependencies and llama.cpp installed automatically
@@ -221,31 +221,33 @@ If a default port is in use, the application automatically finds an available po
 
 ### Projects
 
-| Method | Endpoint             | Description       |
-| ------ | -------------------- | ----------------- |
-| GET    | /api/projects        | List all projects |
-| POST   | /api/projects        | Create a project  |
-| PUT    | /api/projects/{slug} | Update a project  |
-| DELETE | /api/projects/{slug} | Delete a project  |
+| Method | Endpoint                           | Description                 |
+| ------ | ---------------------------------- | --------------------------- |
+| GET    | /api/projects                      | List all projects           |
+| POST   | /api/projects                      | Create a project            |
+| PUT    | /api/projects/{slug}               | Update a project            |
+| DELETE | /api/projects/{slug}               | Delete a project            |
+| POST   | /api/projects/{slug}/open-folder   | Open project in file manager |
 
 ### Data Files
 
 | Method | Endpoint                                    | Description                      |
 | ------ | ------------------------------------------- | -------------------------------- |
-| GET    | /api/projects/{slug}/data-files             | List data files                  |
-| POST   | /api/projects/{slug}/data-files             | Upload a data file               |
-| DELETE | /api/projects/{slug}/data-files/{filename}  | Delete a data file               |
-| GET    | /api/projects/{slug}/data-files/{filename}  | Get file content                 |
+| GET    | /api/projects/{slug}/data                   | List data files                  |
+| POST   | /api/projects/{slug}/data                   | Upload a data file               |
+| DELETE | /api/projects/{slug}/data/{filename}        | Delete a data file               |
+| GET    | /api/projects/{slug}/data/{filename}        | Get file content                 |
 | POST   | /api/projects/{slug}/generate-training-data | Generate training data using LLM |
 | POST   | /api/projects/{slug}/data/save-generated    | Save generated data as JSONL     |
 
 ### Training
 
-| Method | Endpoint                             | Description         |
-| ------ | ------------------------------------ | ------------------- |
-| GET    | /api/projects/{slug}/training        | Get training status |
-| POST   | /api/projects/{slug}/training        | Start training      |
-| POST   | /api/projects/{slug}/training/cancel | Cancel training     |
+| Method | Endpoint                              | Description              |
+| ------ | ------------------------------------- | ------------------------ |
+| GET    | /api/projects/{slug}/train/status     | Get training status      |
+| POST   | /api/projects/{slug}/train            | Start training           |
+| POST   | /api/projects/{slug}/train/cancel     | Cancel training          |
+| WS     | /api/projects/{slug}/train/ws         | Real-time training updates |
 
 ### Models
 
@@ -269,10 +271,12 @@ If a default port is in use, the application automatically finds an available po
 
 ### LLM Providers
 
-| Method | Endpoint                  | Description                  |
-| ------ | ------------------------- | ---------------------------- |
-| GET    | /api/llm-providers/status | Get status of all providers  |
-| POST   | /api/llm-providers/login  | Save and validate an API key |
+| Method | Endpoint                          | Description                  |
+| ------ | --------------------------------- | ---------------------------- |
+| GET    | /api/llm-providers/status         | Get status of all providers  |
+| POST   | /api/llm-providers/login          | Save and validate an API key |
+| GET    | /api/llm-providers/models         | List all available LLM models |
+| GET    | /api/llm-providers/models/{provider} | List models for a provider |
 
 Supported providers: `openai`, `anthropic`, `mistral`
 
