@@ -221,13 +221,13 @@ If a default port is in use, the application automatically finds an available po
 
 ### Projects
 
-| Method | Endpoint                           | Description                 |
-| ------ | ---------------------------------- | --------------------------- |
-| GET    | /api/projects                      | List all projects           |
-| POST   | /api/projects                      | Create a project            |
-| PUT    | /api/projects/{slug}               | Update a project            |
-| DELETE | /api/projects/{slug}               | Delete a project            |
-| POST   | /api/projects/{slug}/open-folder   | Open project in file manager |
+| Method | Endpoint                         | Description                  |
+| ------ | -------------------------------- | ---------------------------- |
+| GET    | /api/projects                    | List all projects            |
+| POST   | /api/projects                    | Create a project             |
+| PUT    | /api/projects/{slug}             | Update a project             |
+| DELETE | /api/projects/{slug}             | Delete a project             |
+| POST   | /api/projects/{slug}/open-folder | Open project in file manager |
 
 ### Data Files
 
@@ -242,12 +242,12 @@ If a default port is in use, the application automatically finds an available po
 
 ### Training
 
-| Method | Endpoint                              | Description              |
-| ------ | ------------------------------------- | ------------------------ |
-| GET    | /api/projects/{slug}/train/status     | Get training status      |
-| POST   | /api/projects/{slug}/train            | Start training           |
-| POST   | /api/projects/{slug}/train/cancel     | Cancel training          |
-| WS     | /api/projects/{slug}/train/ws         | Real-time training updates |
+| Method | Endpoint                          | Description                |
+| ------ | --------------------------------- | -------------------------- |
+| GET    | /api/projects/{slug}/train/status | Get training status        |
+| POST   | /api/projects/{slug}/train        | Start training             |
+| POST   | /api/projects/{slug}/train/cancel | Cancel training            |
+| WS     | /api/projects/{slug}/train/ws     | Real-time training updates |
 
 ### Models
 
@@ -271,12 +271,12 @@ If a default port is in use, the application automatically finds an available po
 
 ### LLM Providers
 
-| Method | Endpoint                          | Description                  |
-| ------ | --------------------------------- | ---------------------------- |
-| GET    | /api/llm-providers/status         | Get status of all providers  |
-| POST   | /api/llm-providers/login          | Save and validate an API key |
-| GET    | /api/llm-providers/models         | List all available LLM models |
-| GET    | /api/llm-providers/models/{provider} | List models for a provider |
+| Method | Endpoint                             | Description                   |
+| ------ | ------------------------------------ | ----------------------------- |
+| GET    | /api/llm-providers/status            | Get status of all providers   |
+| POST   | /api/llm-providers/login             | Save and validate an API key  |
+| GET    | /api/llm-providers/models            | List all available LLM models |
+| GET    | /api/llm-providers/models/{provider} | List models for a provider    |
 
 Supported providers: `openai`, `anthropic`, `mistral`
 
